@@ -99,14 +99,16 @@ public class QrStatusStreams {
     /**
      * JSON in each {@code event: status} message.
      *
+     * @param exchangeCode only for CONFIRMED: the one-time code to POST to /exchange.
      * @param serverTime the server's clock when the event was sent. EventSource doesn't expose
      *                   response headers, so the client can't use the Date header to correct
      *                   for clock skew the way the REST calls do; this field replaces it.
      */
-    record QrStatusEvent(String status, Instant expiresAt, Instant serverTime) {
+    record QrStatusEvent(String status, Instant expiresAt, String exchangeCode, Instant serverTime) {
 
         static QrStatusEvent of(QrStatusUpdate update, Clock clock) {
-            return new QrStatusEvent(update.status().name(), update.expiresAt(), clock.instant());
+            return new QrStatusEvent(update.status().name(), update.expiresAt(), update.exchangeCode(),
+                    clock.instant());
         }
     }
 }

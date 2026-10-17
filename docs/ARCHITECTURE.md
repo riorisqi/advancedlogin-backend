@@ -133,7 +133,7 @@ Conventions: JSON, errors as RFC 7807 `application/problem+json`
   ```
   data: {"status":"PENDING","expiresAt":"…","serverTime":"…"}
   data: {"status":"SCANNED","expiresAt":"…","serverTime":"…"}
-  data: {"status":"CONFIRMED","expiresAt":"…","serverTime":"…"}   (slice 6 adds the code)
+  data: {"status":"CONFIRMED","expiresAt":"…","exchangeCode":"Xy7…","serverTime":"…"}
   data: {"status":"REJECTED","expiresAt":"…","serverTime":"…"}
   ```
   `serverTime` replaces the `Date` header for clock-skew correction (EventSource hides headers).
@@ -174,11 +174,17 @@ wiring `config/RedisMessagingConfig`. Frontend: port `QrStatusStream`, adapter
   Since slice 5 this is only the fallback: used when the SSE stream can't be (no EventSource,
   or it closed for good).
 
-#### `POST /api/qr/sessions/{qrId}/exchange` — redeem the one-time code
-- Body `{"code":"Xy7…"}` + `qr_bind` cookie.
-- Atomic: status must be `CONFIRMED`, bind hash matches, code matches → `CONSUMED`.
-- `204` + new `SESSION` cookie; clears `qr_bind`.
-- Errors: `400` bad code, `410 Gone` expired/consumed.
+#### `POST /api/qr/sessions/{qrId}/exchange` — redeem the one-time code (implemented in slice 6)
+- Body `{"code":"Xy7…"}` + `qr_bind` cookie (+ CSRF header, like every POST).
+- Binding checked first (mismatch → `404`), then the domain's `consume`: status must be
+  `CONFIRMED` and the code must match (constant-time) → `CONSUMED` via the same Lua CAS, so
+  two racing exchanges can't both win.
+- `200 {id, username, displayName}` + new `SESSION` cookie via `WebSessionAuthenticator` (the
+  same session handling as password login: new session id, fresh CSRF token); clears `qr_bind`.
+- Errors: `404` unknown/expired/not bound (also a replay from the same browser, whose `qr_bind`
+  is gone), `409` not approved yet / already redeemed, `400` wrong or missing code.
+- Frontend: `useQrLogin` exchanges as soon as `CONFIRMED` arrives (SSE or poll), then
+  `auth.refresh()` re-reads `/api/me` and the page re-renders as signed in.
 
 > **Why a code instead of pushing the session directly?** The SSE response body could
 > be logged by a proxy, cached, or read by JS. The code is useless on its own
@@ -227,9 +233,10 @@ How the pieces fit:
   location (offline GeoLite2 DB) is planned for slice 8.
 - Errors: `404` expired/unknown, `409` already scanned by someone else.
 
-#### `POST /api/qr/sessions/{qrId}/approve` → `204` (slice 4; code generation in slice 6)
+#### `POST /api/qr/sessions/{qrId}/approve` → `204` (slices 4–6)
 SCANNED → CONFIRMED (30s window), only by the user who scanned; anyone else → `409`.
-Slice 6 adds the one-time exchange code, slice 5 the push event.
+Issues a fresh 256-bit exchange code, pushed to the bound desktop over SSE (and included in the
+snapshot for the polling fallback).
 
 #### `POST /api/qr/sessions/{qrId}/reject` → `204` (slice 4)
 SCANNED → REJECTED (kept 15s so the desktop can show it), only by the user who scanned.
@@ -240,7 +247,8 @@ SCANNED → REJECTED (kept 15s so the desktop can show it), only by the user who
 |---|---|
 | qrId unknown / expired / wrong binding cookie | `404` (indistinguishable on purpose) |
 | Wrong state (e.g. approve while PENDING) or other user | `409` |
-| Exchange after consumed/expired | `410` |
+| Exchange: not approved yet / already redeemed | `409` |
+| Exchange: wrong or missing code | `400` |
 | Rate limit hit | `429` + `Retry-After` |
 | Not logged in (phone endpoints) | `401` |
 
@@ -265,9 +273,11 @@ Notes:
   (e.g. the slower of two scanning phones gets `409`). One generic script serves every
   transition; ownership is safe because `scannedBy` is only ever set together with
   PENDING → SCANNED, so "status is still SCANNED" implies "same scanner".
-- The code is stored in the hash in plaintext — acceptable because it lives ≤30s and
-  is useless without the binding cookie. (Discuss: hash it if you want to be strict;
-  then a reconnecting stream can't re-deliver it.)
+- The exchange code is stored in the hash in plaintext — acceptable because it lives ≤30s,
+  is useless without the binding cookie, and is wiped (set to `""`) on CONSUMED. Storing it
+  lets a reconnecting stream or a poll re-deliver it. (Stricter alternative: store only a hash
+  and deliver the code once; a missed push then means starting over.) It also travels in the
+  Pub/Sub payload (`CONFIRMED:<expiresAt>:<code>`), inside the same trusted Redis.
 
 ---
 
@@ -421,7 +431,7 @@ those live behind ports, which `app/DependenciesProvider` fills with real implem
 4. **Status via polling** (done) — `GET /api/qr/sessions/{id}`, scan/approve/reject + Lua CAS, `/m/approve/:qrId`.
    End-to-end works with a hard-coded qrId pasted on the phone.
 5. **SSE** (done) — replace polling with `EventSource` (polling kept as fallback); Redis pub/sub fan-out.
-6. **Exchange** — one-time code → session cookie → desktop logged in.
+6. **Exchange** (done) — one-time code → session cookie → desktop logged in.
 7. **Phone camera scanner** + HTTPS dev setup.
 8. **Hardening** — rate limiting, device/IP display, GeoIP, QR auto-refresh, tests
    (Testcontainers Redis), attack-yourself exercises (copy QR to another browser,

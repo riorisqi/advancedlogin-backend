@@ -30,7 +30,7 @@ class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/error").permitAll()
                         // The desktop asking for a QR is, by definition, not logged in yet.
-                        .requestMatchers(HttpMethod.POST, "/api/qr/sessions").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/qr/sessions", "/api/qr/sessions/*/exchange").permitAll()
                         // Desktop status (snapshot + SSE stream): guarded by the qr_bind cookie instead.
                         .requestMatchers(HttpMethod.GET, "/api/qr/sessions/*", "/api/qr/sessions/*/events").permitAll()
                         .anyRequest().authenticated())

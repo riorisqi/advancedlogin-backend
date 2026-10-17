@@ -2,12 +2,15 @@ package com.advancedlogin.application.qr;
 
 import com.advancedlogin.domain.qr.BindingHash;
 import com.advancedlogin.domain.qr.IllegalQrTransitionException;
+import com.advancedlogin.domain.qr.InvalidExchangeCodeException;
 import com.advancedlogin.domain.qr.QrSession;
 import com.advancedlogin.domain.qr.QrSessionId;
 import com.advancedlogin.domain.qr.QrStatus;
 import com.advancedlogin.domain.qr.QrStatusUpdate;
 import com.advancedlogin.domain.qr.QrTimeouts;
 import com.advancedlogin.domain.qr.RequestingDevice;
+import com.advancedlogin.application.auth.port.out.UserRepository;
+import com.advancedlogin.domain.user.User;
 import com.advancedlogin.domain.user.UserId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +21,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,9 +36,23 @@ class QrSessionServiceTest {
     private final UserId alice = new UserId("alice-id");
     private final UserId bob = new UserId("bob-id");
     private final InMemoryQrSessionStore store = new InMemoryQrSessionStore();
+    private static final String CODE = "c".repeat(43);
+
     private final List<QrStatusUpdate> published = new ArrayList<>();
+    private final User aliceUser = new User(new UserId("alice-id"), "alice", "Alice", "hash");
+    private final UserRepository users = new UserRepository() {
+        @Override
+        public Optional<User> findByUsername(String username) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<User> findById(UserId id) {
+            return aliceUser.id().equals(id) ? Optional.of(aliceUser) : Optional.empty();
+        }
+    };
     private final QrSessionService service =
-            new QrSessionService(store, published::add, Clock.fixed(T0, ZoneOffset.UTC), TIMEOUTS);
+            new QrSessionService(store, published::add, () -> CODE, users, Clock.fixed(T0, ZoneOffset.UTC), TIMEOUTS);
 
     @BeforeEach
     void createPendingSession() {
@@ -66,7 +84,7 @@ class QrSessionServiceTest {
 
     @Test
     void expiredSessionIsNotFoundEvenIfStillStored() {
-        QrSessionService later = new QrSessionService(store, published::add, Clock.fixed(T0.plusSeconds(120), ZoneOffset.UTC), TIMEOUTS);
+        QrSessionService later = new QrSessionService(store, published::add, () -> CODE, users, Clock.fixed(T0.plusSeconds(120), ZoneOffset.UTC), TIMEOUTS);
 
         assertThatThrownBy(() -> later.scan(ID, alice)).isInstanceOf(QrSessionNotFoundException.class);
     }
@@ -89,7 +107,7 @@ class QrSessionServiceTest {
             }
         };
         racingStore.create(store.findById(ID).orElseThrow());
-        QrSessionService racingService = new QrSessionService(racingStore, published::add, Clock.fixed(T0, ZoneOffset.UTC), TIMEOUTS);
+        QrSessionService racingService = new QrSessionService(racingStore, published::add, () -> CODE, users, Clock.fixed(T0, ZoneOffset.UTC), TIMEOUTS);
 
         assertThatThrownBy(() -> racingService.scan(ID, alice)).isInstanceOf(IllegalQrTransitionException.class);
         assertThat(racingStore.findById(ID).orElseThrow().scanner()).contains(bob);
@@ -104,5 +122,31 @@ class QrSessionServiceTest {
 
         assertThat(published).extracting(QrStatusUpdate::status).containsExactly(QrStatus.SCANNED, QrStatus.CONFIRMED);
         assertThat(published.get(1).expiresAt()).isEqualTo(T0.plusSeconds(30));
+    }
+
+    @Test
+    void approvePublishesTheCodeForTheDesktop() {
+        service.scan(ID, alice);
+        service.approve(ID, alice);
+
+        QrStatusUpdate confirmed = published.getLast();
+        assertThat(confirmed.status()).isEqualTo(QrStatus.CONFIRMED);
+        assertThat(confirmed.exchangeCode()).isEqualTo(CODE);
+        assertThat(service.getStatus(ID, "bind-secret").code()).contains(CODE);
+    }
+
+    @Test
+    void exchangeNeedsBindingAndCodeAndWorksOnce() {
+        service.scan(ID, alice);
+        service.approve(ID, alice);
+
+        assertThatThrownBy(() -> service.exchange(ID, "not-the-cookie", CODE)).isInstanceOf(QrSessionNotFoundException.class);
+        assertThatThrownBy(() -> service.exchange(ID, "bind-secret", "x".repeat(43))).isInstanceOf(InvalidExchangeCodeException.class);
+
+        assertThat(service.exchange(ID, "bind-secret", CODE)).isEqualTo(aliceUser);
+        assertThat(published.getLast().status()).isEqualTo(QrStatus.CONSUMED);
+
+        assertThatThrownBy(() -> service.exchange(ID, "bind-secret", CODE)).as("replay")
+                .isInstanceOf(IllegalQrTransitionException.class);
     }
 }

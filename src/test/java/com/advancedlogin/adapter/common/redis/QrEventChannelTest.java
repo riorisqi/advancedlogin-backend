@@ -15,7 +15,7 @@ class QrEventChannelTest {
 
     @Test
     void roundTrips() {
-        QrStatusUpdate update = new QrStatusUpdate(id, QrStatus.SCANNED, Instant.ofEpochMilli(1_792_223_319_015L));
+        QrStatusUpdate update = new QrStatusUpdate(id, QrStatus.SCANNED, Instant.ofEpochMilli(1_792_223_319_015L), null);
 
         String channel = QrEventChannel.channel(id);
         String payload = QrEventChannel.encode(update);
@@ -23,6 +23,16 @@ class QrEventChannelTest {
         assertThat(channel).isEqualTo("qr:events:" + id.value());
         assertThat(payload).isEqualTo("SCANNED:1792223319015");
         assertThat(QrEventChannel.decode(channel, payload)).contains(update);
+    }
+
+    @Test
+    void carriesTheExchangeCodeForConfirmed() {
+        QrStatusUpdate update = new QrStatusUpdate(id, QrStatus.CONFIRMED, Instant.ofEpochMilli(1_000L), "c".repeat(43));
+
+        String payload = QrEventChannel.encode(update);
+
+        assertThat(payload).isEqualTo("CONFIRMED:1000:" + "c".repeat(43));
+        assertThat(QrEventChannel.decode(QrEventChannel.channel(id), payload)).contains(update);
     }
 
     @Test

@@ -16,6 +16,8 @@ class QrSessionTest {
             Duration.ofSeconds(90), Duration.ofSeconds(60), Duration.ofSeconds(30), Duration.ofSeconds(15));
     static final Instant T0 = Instant.parse("2026-10-17T12:00:00Z");
 
+    static final String CODE = "c".repeat(43);
+
     private final UserId alice = new UserId("alice-id");
     private final UserId bob = new UserId("bob-id");
     private final QrSession pending = QrSession.pending(new QrSessionId("q".repeat(43)), BindingHash.of("secret"),
@@ -51,26 +53,49 @@ class QrSessionTest {
     void onlyTheScannerCanApproveOrReject() {
         QrSession scanned = pending.scan(alice, T0, TIMEOUTS);
 
-        assertThatThrownBy(() -> scanned.approve(bob, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
+        assertThatThrownBy(() -> scanned.approve(bob, CODE, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
         assertThatThrownBy(() -> scanned.reject(bob, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
 
-        assertThat(scanned.approve(alice, T0, TIMEOUTS).status()).isEqualTo(QrStatus.CONFIRMED);
+        assertThat(scanned.approve(alice, CODE, T0, TIMEOUTS).status()).isEqualTo(QrStatus.CONFIRMED);
         assertThat(scanned.reject(alice, T0, TIMEOUTS).status()).isEqualTo(QrStatus.REJECTED);
     }
 
     @Test
     void cannotApproveOrRejectBeforeScanning() {
-        assertThatThrownBy(() -> pending.approve(alice, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
+        assertThatThrownBy(() -> pending.approve(alice, CODE, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
         assertThatThrownBy(() -> pending.reject(alice, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
     }
 
     @Test
     void terminalStatesAcceptNoFurtherMoves() {
-        QrSession confirmed = pending.scan(alice, T0, TIMEOUTS).approve(alice, T0, TIMEOUTS);
+        QrSession confirmed = pending.scan(alice, T0, TIMEOUTS).approve(alice, CODE, T0, TIMEOUTS);
         QrSession rejected = pending.scan(alice, T0, TIMEOUTS).reject(alice, T0, TIMEOUTS);
 
         assertThatThrownBy(() -> confirmed.reject(alice, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
-        assertThatThrownBy(() -> rejected.approve(alice, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
+        assertThatThrownBy(() -> rejected.approve(alice, CODE, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
         assertThatThrownBy(() -> rejected.scan(bob, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
+    }
+
+    @Test
+    void approveIssuesTheExchangeCodeAndConsumeRedeemsItOnce() {
+        QrSession confirmed = pending.scan(alice, T0, TIMEOUTS).approve(alice, CODE, T0, TIMEOUTS);
+        assertThat(confirmed.code()).contains(CODE);
+
+        QrSession consumed = confirmed.consume(CODE, T0.plusSeconds(5), TIMEOUTS);
+
+        assertThat(consumed.status()).isEqualTo(QrStatus.CONSUMED);
+        assertThat(consumed.code()).as("code is forgotten once used").isEmpty();
+        assertThat(consumed.scanner()).as("still knows who to log in").contains(alice);
+        assertThatThrownBy(() -> consumed.consume(CODE, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
+    }
+
+    @Test
+    void wrongCodeIsRejectedAndCodeCantBeRedeemedBeforeApproval() {
+        QrSession scanned = pending.scan(alice, T0, TIMEOUTS);
+        QrSession confirmed = scanned.approve(alice, CODE, T0, TIMEOUTS);
+
+        assertThatThrownBy(() -> confirmed.consume("x".repeat(43), T0, TIMEOUTS)).isInstanceOf(InvalidExchangeCodeException.class);
+        assertThatThrownBy(() -> confirmed.consume(null, T0, TIMEOUTS)).isInstanceOf(InvalidExchangeCodeException.class);
+        assertThatThrownBy(() -> scanned.consume(CODE, T0, TIMEOUTS)).isInstanceOf(IllegalQrTransitionException.class);
     }
 }

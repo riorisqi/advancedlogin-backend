@@ -60,13 +60,13 @@ class UseCaseConfig {
     }
 
     /**
-     * One object implements the status/scan/approve/reject use cases; Spring injects it wherever
-     * any of those four interfaces is asked for.
+     * One object implements the status/scan/approve/reject/exchange use cases; Spring injects it
+     * wherever any of those interfaces is asked for.
      */
     @Bean
-    QrSessionService qrSessionService(QrSessionStore store, QrStatusPublisher publisher, Clock clock,
-                                      QrTimeouts timeouts) {
-        return new QrSessionService(store, publisher, clock, timeouts);
+    QrSessionService qrSessionService(QrSessionStore store, QrStatusPublisher publisher, RandomTokenGenerator tokens,
+                                      UserRepository users, Clock clock, QrTimeouts timeouts) {
+        return new QrSessionService(store, publisher, tokens, users, clock, timeouts);
     }
 
     /** Use cases ask a Clock for "now" instead of calling Instant.now(), so tests can fix time. */

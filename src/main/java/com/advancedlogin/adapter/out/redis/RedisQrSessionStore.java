@@ -22,7 +22,8 @@ import java.util.Optional;
 
 /**
  * QR sessions as Redis hashes: {@code qr:s:{qrId}} with fields status, bindHash, ip, userAgent,
- * createdAt, expiresAt and (once scanned) scannedBy, scannedAt. Times are epoch millis. Redis
+ * createdAt, expiresAt, (once scanned) scannedBy, scannedAt, and exchangeCode (empty string
+ * when none: HSET can't delete a field, so empty means absent). Times are epoch millis. Redis
  * deletes the key when the TTL runs out, which is how a session becomes EXPIRED.
  */
 @Component
@@ -83,7 +84,8 @@ class RedisQrSessionStore implements QrSessionStore {
                 "ip", s.requestingDevice().ipAddress(),
                 "userAgent", s.requestingDevice().userAgent(),
                 "createdAt", millis(s.createdAt()),
-                "expiresAt", millis(s.expiresAt())));
+                "expiresAt", millis(s.expiresAt()),
+                "exchangeCode", s.exchangeCode() == null ? "" : s.exchangeCode()));
         if (s.scannedBy() != null) {
             fields.addAll(List.of("scannedBy", s.scannedBy().value(), "scannedAt", millis(s.scannedAt())));
         }
@@ -93,6 +95,7 @@ class RedisQrSessionStore implements QrSessionStore {
     private static QrSession fromFields(QrSessionId id, Map<Object, Object> h) {
         String scannedBy = (String) h.get("scannedBy");
         String scannedAt = (String) h.get("scannedAt");
+        String exchangeCode = (String) h.get("exchangeCode");
         return new QrSession(
                 id,
                 QrStatus.valueOf((String) h.get("status")),
@@ -101,7 +104,8 @@ class RedisQrSessionStore implements QrSessionStore {
                 instant(h.get("createdAt")),
                 instant(h.get("expiresAt")),
                 scannedBy == null ? null : new UserId(scannedBy),
-                scannedAt == null ? null : instant(scannedAt));
+                scannedAt == null ? null : instant(scannedAt),
+                exchangeCode == null || exchangeCode.isEmpty() ? null : exchangeCode);
     }
 
     private static String key(QrSessionId id) {
