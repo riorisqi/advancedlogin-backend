@@ -11,7 +11,7 @@ class GeoIpLocationLookupTest {
     private final GeoIpLocationLookup lookup = new GeoIpLocationLookup("");
 
     @ParameterizedTest
-    @ValueSource(strings = {"127.0.0.1", "0:0:0:0:0:0:0:1", "192.168.0.183", "10.1.2.3", "172.20.0.5",
+    @ValueSource(strings = {"127.0.0.1", "0:0:0:0:0:0:0:1", "192.168.1.10", "10.1.2.3", "172.20.0.5",
             "169.254.1.1", "fd12:3456:789a::1", "fe80::1"})
     void privateAndLoopbackAddressesAreTheLocalNetwork(String ip) {
         assertThat(lookup.approximateLocation(ip)).contains("Local network");

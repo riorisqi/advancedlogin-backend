@@ -154,7 +154,7 @@ Things to try next:
 1. **Same network.** Connect the phone to the same Wi-Fi as the PC. Guest networks often block
    devices from seeing each other ("client isolation"), so use the main one.
 
-2. **Start the frontend in LAN mode** (instead of `bun dev`; Redis and the backend stay as in §3):
+2. **Start the frontend in LAN mode** (instead of `bun dev`; Redis and the backend stay as in [§3](#3-start-everything-3-terminals)):
 
    ```powershell
    cd frontend
@@ -165,15 +165,15 @@ Things to try next:
 
    ```
    ➜  Local:   https://localhost:5173/
-   ➜  Network: https://192.168.0.183:5173/   Ethernet
-   ➜  Network: https://172.28.16.1:5173/     vEthernet (WSL ...)
+   ➜  Network: https://192.168.x.x:5173/     Ethernet (or Wi-Fi)
+   ➜  Network: https://172.x.x.x:5173/       vEthernet (WSL ...)
    ```
 
    Use the **192.168.x.x** one (your Wi-Fi/Ethernet adapter), not the WSL/Hyper-V one. Not sure?
    Run `ipconfig` and take the IPv4 address of the adapter connected to your router.
 
    **Windows Firewall** may ask whether to allow `bun`/`node` on networks: allow **Private
-   networks**. If you dismissed it, the phone will time out (see §7).
+   networks**. If you dismissed it, the phone will time out (see [§7](#7-troubleshooting)).
 
 3. **Desktop:** on the PC, open **`https://192.168.x.x:5173`**, the network address, *not*
    localhost. The QR's link is built from the address the desktop uses, and the phone can't open
@@ -229,7 +229,7 @@ they don't touch your dev Redis.
 |---|---|---|
 | `/status` shows **Backend DOWN** (502) | backend not running, or still starting | start Terminal 2; wait for `Started …` |
 | **Redis DOWN** | Docker not running / container stopped | start Docker Desktop, `docker compose up -d` |
-| Backend log: `NOAUTH Authentication required` | backend started without the `dev` profile | add `-Dspring-boot.run.profiles=dev`; in IntelliJ set env var `SPRING_PROFILES_ACTIVE=dev` (see §3); or set `REDIS_PASSWORD` |
+| Backend log: `NOAUTH Authentication required` | backend started without the `dev` profile | add `-Dspring-boot.run.profiles=dev`; in IntelliJ set env var `SPRING_PROFILES_ACTIVE=dev` (see [§3](#3-start-everything-3-terminals)); or set `REDIS_PASSWORD` |
 | "Invalid username or password" for alice | `dev` profile not active, so no test accounts | as above |
 | "Too many sign-in attempts. Try again in N seconds" | login rate limit (5 per username per minute) | wait, or clear counters (below) |
 | Backend won't start: `Unable to establish loopback connection` | Java NIO + Windows temp folder | add VM option `-Djdk.net.unixdomain.tmpdir=<any writable folder>` |
