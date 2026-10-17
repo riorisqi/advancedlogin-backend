@@ -1,0 +1,32 @@
+package com.advancedlogin.adapter.out.geo;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/** Without a database: only the "is this a local address?" part. */
+class GeoIpLocationLookupTest {
+
+    private final GeoIpLocationLookup lookup = new GeoIpLocationLookup("");
+
+    @ParameterizedTest
+    @ValueSource(strings = {"127.0.0.1", "0:0:0:0:0:0:0:1", "192.168.0.183", "10.1.2.3", "172.20.0.5",
+            "169.254.1.1", "fd12:3456:789a::1", "fe80::1"})
+    void privateAndLoopbackAddressesAreTheLocalNetwork(String ip) {
+        assertThat(lookup.approximateLocation(ip)).contains("Local network");
+    }
+
+    @Test
+    void publicAddressWithoutDatabaseHasNoLocation() {
+        assertThat(lookup.approximateLocation("203.0.113.7")).isEmpty();
+    }
+
+    @Test
+    void neverResolvesHostnames() {
+        // Must not trigger a DNS lookup (slow, and leaks which names we look up).
+        assertThat(lookup.approximateLocation("example.com")).isEmpty();
+        assertThat(lookup.approximateLocation(null)).isEmpty();
+    }
+}

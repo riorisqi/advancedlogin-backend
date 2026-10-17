@@ -11,7 +11,10 @@ import org.testcontainers.containers.GenericContainer;
  * (Testcontainers' Ryuk sidecar removes it when the JVM exits). Because all subclasses share the
  * same configuration, Spring also reuses one application context across them.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// Rate limiting off: these tests fire far more requests per minute from one IP than any human.
+// RateLimitIntegrationTest switches it back on with tiny limits.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "app.rate-limit.enabled=false")
 public abstract class RedisIntegrationTest {
 
     @ServiceConnection(name = "redis")

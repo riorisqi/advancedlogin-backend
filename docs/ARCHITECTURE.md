@@ -1,6 +1,7 @@
 # AdvancedLogin — Architecture & API Design
 
-Status: **draft v1** — decisions marked ✅ are recommendations, open to change.
+Status: **v1, all 8 milestones implemented** (§10). Decisions marked ✅ were the recommendations we went with.
+Want to break it? See §11 *Attack yourself*.
 
 ---
 
@@ -229,11 +230,16 @@ How the pieces fit:
     "browser": "Chrome 152",
     "os": "Windows",
     "ipAddress": "203.0.113.7",
+    "approximateLocation": "Jakarta, Indonesia",
     "expiresAt": "2026-10-17T12:01:00Z"
   }
   ```
-  Browser/OS come from a small User-Agent summarizer (`UserAgentSummary`). An approximate
-  location (offline GeoLite2 DB) is planned for slice 8.
+  Browser/OS come from a small User-Agent summarizer (`UserAgentSummary`). The location is
+  looked up once at QR creation (`IpLocationLookup` port → `GeoIpLocationLookup`): private/LAN
+  IPs → `"Local network"`; public IPs → "City, Country" from an **optional offline** MaxMind-format
+  `.mmdb` (`app.geoip.database`; GeoLite2-City or DB-IP City Lite), otherwise omitted. Offline on
+  purpose: no third-party request per login. Approximate by nature (VPNs, carrier NAT): a hint
+  for the user, never a security decision.
 - Errors: `404` expired/unknown, `409` already scanned by someone else.
 
 #### `POST /api/qr/sessions/{qrId}/approve` → `204` (slices 4–6)
@@ -263,7 +269,7 @@ SCANNED → REJECTED (kept 15s so the desktop can show it), only by the user who
 |---|---|---|---|
 | `qr:s:{qrId}` | HASH | `status`, `bindHash`, `createdAt`, `ip`, `userAgent`, `scannedBy`, `scannedAt`, `code` | 90s PENDING → 60s after SCANNED → 30s after CONFIRMED → 15s after terminal (so a reconnecting stream still sees the final state) |
 | `qr:events:{qrId}` | Pub/Sub channel | `STATUS:expiresAtMillis` on every stored transition | — |
-| `rl:{bucket}:{ip}:{minute}` | STRING (counter) | `INCR` + `EXPIRE` fixed-window rate limit | 60s |
+| `rl:{rule}:{subject}` | STRING (counter) | fixed-window counter, `lua/rate_limit.lua` (`INCR` + `PEXPIRE` on first hit) | the rule's window (1 min) |
 | `spring:session:*` | managed by Spring Session | HTTP sessions | 30 min idle |
 
 Notes:
@@ -284,10 +290,32 @@ Notes:
 
 ---
 
-## 7. Rate limiting
+## 7. Rate limiting (implemented in slice 8)
 
-| Endpoint | Limit (per IP) | Why |
-|---|---|---|
+| Rule | Applies to | Limit | Why |
+|---|---|---|---|
+| `qr-create` | `POST /api/qr/sessions`, per IP | 10/min | stop Redis flooding / QR farming |
+| `qr-status` | `GET …/{qrId}` + `…/events`, per IP | 60/min | polling is 30/min; leaves room for SSE reconnects |
+| `qr-exchange` | `POST …/exchange`, per IP | 10/min | limit code guessing (256-bit, so belt and braces) |
+| `login-ip` | `POST /api/auth/login`, per IP | 20/min | password spraying from one place |
+| `login-user` | login, per **username**, from any IP | 5/min | targeted guessing from many IPs |
+
+How:
+- `CheckRateLimitUseCase` (application) holds the named rules from `app.rate-limit.rules`, and asks
+  the `RateLimiter` port → `RedisRateLimiter` → `lua/rate_limit.lua`. Counters are shared by all
+  backend instances; a fixed window per key, starting at the first hit.
+- The **per-IP** rules run in `RateLimitFilter`, registered just *before* Spring Security, so a
+  flood is turned away before session/CSRF work. The IP is `getRemoteAddr()` after Tomcat's
+  `RemoteIpValve`, so a client can't dodge limits by sending its own `X-Forwarded-For`.
+- The **per-username** rule runs inside the login use case (`AuthenticateUserService`): it's about
+  an account, not a connection, and the username lives in the JSON body. It counts unknown
+  usernames too (no account enumeration) and fires *before* the password check.
+- `429` + `Retry-After` + problem+json; the frontend shows "Try again in N seconds".
+- **Fail open** if Redis is down (logged): rate limiting must not become the outage.
+- Trade-offs: a fixed window allows a 2× burst around the boundary (fine here); per-username
+  limits let someone lock a known account out for a minute (mild, temporary).
+
+---|---|---|
 | `POST /api/qr/sessions` | 10/min | stop Redis flooding / QR farming |
 | `GET …/{qrId}` + `…/events` | 60/min | stop brute-force probing (cheap defense, ids are 256-bit anyway) |
 | `POST …/exchange` | 10/min | limit code guessing |
@@ -457,6 +485,32 @@ those live behind ports, which `app/DependenciesProvider` fills with real implem
 5. **SSE** (done) — replace polling with `EventSource` (polling kept as fallback); Redis pub/sub fan-out.
 6. **Exchange** (done) — one-time code → session cookie → desktop logged in.
 7. **Phone camera scanner** (done) + HTTPS dev setup (`bun run dev:lan`).
-8. **Hardening** — rate limiting, device/IP display, GeoIP, QR auto-refresh, tests
-   (Testcontainers Redis), attack-yourself exercises (copy QR to another browser,
-   replay code, double-approve race).
+8. **Hardening** (done) — rate limiting, device/IP display, GeoIP, QR auto-refresh, tests
+   (Testcontainers Redis), attack-yourself exercises (see §11).
+
+---
+
+## 11. Attack yourself
+
+Every row is an attack on QR login, the defence, the automated test that proves it, and a way
+to try it by hand. (Run the app locally; never against systems you don't own.)
+
+| # | Attack | Defence | Proven by | Try it |
+|---|---|---|---|---|
+| 1 | **Photograph the QR**, open its link in your own browser to watch/steal the login | `qr_bind` HttpOnly cookie; status/stream/exchange need it | `QrApprovalFlowIntegrationTest.knowingTheQrIdIsNotEnoughToWatchIt` | Copy `qrContent` to another browser profile: `GET /api/qr/sessions/{id}` → 404 |
+| 2 | **Steal the exchange code** (logs, shoulder) and redeem it | code is useless without `qr_bind` | `QrLoginEndToEndIntegrationTest.stolenCodeIsUselessWithoutTheBindingCookie` | `curl -X POST …/exchange` with the code but no cookie → 404 |
+| 3 | **Replay** the code after login | single use (CONSUMED) + `qr_bind` cleared | `…desktopEndsUpLoggedInAsThePhoneUser` (last lines) | POST the same code twice → 404 / 409 |
+| 4 | **Race:** two phones scan (or approve) at the same instant | Lua compare-and-set; loser re-reads and gets 409 | `QrApprovalFlowIntegrationTest.whenTwoPhonesScanAtTheSameInstantExactlyOneWins` | Fire two `scan` curls in parallel (`&`) |
+| 5 | **Hijack after scan:** another user approves someone else's scan | session locked to `scannedBy` | `QrSessionTest.onlyTheScannerCanApproveOrReject`, `…onceScannedOtherUsersAreLockedOut` | Log in as bob in a third profile, POST `/approve` → 409 |
+| 6 | **QRLjacking:** relay *your* QR to a victim ("scan for a prize") | phone shows browser, OS, IP, location, time before approving | `QrApprovalFlowIntegrationTest.happyPathScanThenApprove` (fields present) | Create a QR with a fake `User-Agent` via curl; look at the phone screen |
+| 7 | **Malicious QR** pointing the phone to a phishing site | phone only accepts `<own origin>/m/approve/<id>`, never navigates to scanned URLs | `frontend: approveLink.test.ts` | Scan any other QR (or paste a URL) on `/m/scan` |
+| 8 | **Guess qrIds / codes** | 256-bit `SecureRandom` ids; rate limits | `RateLimitIntegrationTest` | Loop `GET /api/qr/sessions/<random>` → 404s, then 429 |
+| 9 | **Password brute force** on the phone login | per-IP + per-username limits, BCrypt, timing-equalised unknown users | `RateLimitIntegrationTest.passwordGuessingIsLimitedPerUsernameEvenWithTheRightPassword`, `AuthenticateUserServiceTest` | 6 wrong logins in a minute → "Too many sign-in attempts" |
+| 10 | **CSRF:** a malicious site makes your phone browser POST `/approve` | `SameSite=Lax` SESSION + `X-XSRF-TOKEN` double-submit | `AuthFlowIntegrationTest.loginWithoutCsrfTokenIsForbidden`, `CreateQrSessionIntegrationTest.creatingRequiresCsrfToken` | `curl` a POST with the SESSION cookie but no header → 403 |
+| 11 | **Session fixation:** plant a session id before login | new session id + new CSRF token at login/exchange | `AuthFlowIntegrationTest.fullLoginMeLogoutFlow` (token rotated) | Compare `SESSION` before/after login in DevTools |
+| 12 | **Spoof your IP** via `X-Forwarded-For` to dodge limits / fake the phone screen | header only trusted from internal proxies (RemoteIpValve) | `CreateQrSessionIntegrationTest.realClientIpAndOriginComeThroughTheDevProxy` (trusted path) | From another machine, send `X-Forwarded-For: 1.2.3.4` straight to :8080 → ignored |
+| 13 | **Stale QR** left on a public screen | 90s TTL, auto-refresh max 3×, then manual | `QrSessionServiceTest.expiredSessionIsNotFoundEvenIfStillStored` | Wait 90s; the old id 404s |
+
+Not covered (out of scope for this project): XSS in the SPA (React escapes by default; add a CSP
+in production), TLS/HSTS in production, account recovery, device management ("log out other
+sessions"), audit logging.

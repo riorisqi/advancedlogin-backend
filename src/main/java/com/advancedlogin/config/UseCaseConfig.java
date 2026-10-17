@@ -10,8 +10,10 @@ import com.advancedlogin.application.health.CheckHealthService;
 import com.advancedlogin.application.health.port.in.CheckHealthUseCase;
 import com.advancedlogin.application.health.port.out.DataStoreHealthPort;
 import com.advancedlogin.application.qr.CreateQrSessionService;
+import com.advancedlogin.application.ratelimit.port.in.CheckRateLimitUseCase;
 import com.advancedlogin.application.qr.QrSessionService;
 import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase;
+import com.advancedlogin.application.qr.port.out.IpLocationLookup;
 import com.advancedlogin.application.qr.port.out.QrSessionStore;
 import com.advancedlogin.application.qr.port.out.QrStatusPublisher;
 import com.advancedlogin.application.qr.port.out.RandomTokenGenerator;
@@ -36,8 +38,9 @@ class UseCaseConfig {
     }
 
     @Bean
-    AuthenticateUserUseCase authenticateUserUseCase(UserRepository users, PasswordHasher passwordHasher) {
-        return new AuthenticateUserService(users, passwordHasher);
+    AuthenticateUserUseCase authenticateUserUseCase(UserRepository users, PasswordHasher passwordHasher,
+                                                    CheckRateLimitUseCase rateLimits) {
+        return new AuthenticateUserService(users, passwordHasher, rateLimits);
     }
 
     @Bean
@@ -54,9 +57,9 @@ class UseCaseConfig {
     }
 
     @Bean
-    CreateQrSessionUseCase createQrSessionUseCase(QrSessionStore store, RandomTokenGenerator tokens, Clock clock,
-                                                  QrTimeouts timeouts) {
-        return new CreateQrSessionService(store, tokens, clock, timeouts);
+    CreateQrSessionUseCase createQrSessionUseCase(QrSessionStore store, RandomTokenGenerator tokens,
+                                                  IpLocationLookup locations, Clock clock, QrTimeouts timeouts) {
+        return new CreateQrSessionService(store, tokens, locations, clock, timeouts);
     }
 
     /**

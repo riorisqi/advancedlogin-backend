@@ -11,6 +11,7 @@ The React app lives in the sibling repo [`advancedlogin-frontend`](https://githu
 |---|---|
 | Design, API, state machine, Redis keys | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Project context & decisions | [docs/CLAUDE.md](docs/CLAUDE.md) |
+| Attacks and the tests that stop them | [ARCHITECTURE.md §11](docs/ARCHITECTURE.md#11-attack-yourself) |
 
 <p align="center"><img src="docs/images/sequence.svg" alt="QR login sequence" width="720"></p>
 
@@ -83,6 +84,7 @@ Integration tests start a throwaway Redis container, so **Docker must be running
 | HTTP + Redis | `QrLoginEndToEndIntegrationTest`: desktop ends up logged in, replay/stolen code fail |
 | | `QrApprovalFlowIntegrationTest`: two phones scanning at the same instant, exactly one wins |
 | | `QrStatusStreamIntegrationTest`: SSE stream, update published by "another instance" |
+| | `RateLimitIntegrationTest`: 429 + `Retry-After`, per-username login lockout |
 | Architecture | `CleanArchitectureTest`: dependencies only point inwards (fails the build otherwise) |
 
 ## Code layout (clean architecture)
@@ -124,6 +126,8 @@ Full contract: [ARCHITECTURE.md §5](docs/ARCHITECTURE.md).
 | `app.qr.timeouts.pending / scanned / confirmed / terminal` | 90s / 60s / 30s / 15s | lifetime of each QR state |
 | `app.qr.approve-base-url` | empty → the desktop's `Origin` | base of the URL inside the QR; the phone must reach it. Set it in production (env: `APP_QR_APPROVE_BASE_URL`) |
 | `app.qr.secure-cookies` | `false` | set `true` behind HTTPS |
+| `app.rate-limit.enabled` / `.rules.<name>.requests` / `.window` | `true`, see `application.yml` | per-IP and per-username limits ([ARCHITECTURE.md §7](docs/ARCHITECTURE.md)) |
+| `app.geoip.database` | empty | optional MaxMind-format `.mmdb` (GeoLite2-City / DB-IP City Lite) for "City, Country" on the phone (env: `APP_GEOIP_DATABASE`). LAN IPs always show "Local network" |
 | `spring.data.redis.host / port` | `localhost` / `6379` | Redis |
 | `spring.session.data.redis.namespace` | `advancedlogin:session` | key prefix of HTTP sessions |
 | `server.forward-headers-strategy` | `native` | trust `X-Forwarded-For` from local/private proxies only (the Vite dev proxy), so the real client IP is recorded |
@@ -135,6 +139,7 @@ RedisInsight runs at http://localhost:5540 (add a database with host `redis`, po
 ```bash
 docker exec -it backend-redis-1 redis-cli
 > SCAN 0 MATCH qr:s:*            # live QR sessions
+> SCAN 0 MATCH rl:*              # rate-limit counters (rl:<rule>:<ip or username>)
 > HGETALL qr:s:<qrId>            # status, bindHash, scannedBy, ...
 > TTL qr:s:<qrId>                # seconds until it expires
 > PSUBSCRIBE qr:events:*         # watch status changes fly by
@@ -149,3 +154,6 @@ docker exec -it backend-redis-1 redis-cli
   or run a second copy with `--server.port=8090` and point the frontend at it with
   `BACKEND_URL=http://localhost:8090`.
 - **Integration tests fail to start:** Docker isn't running (Testcontainers needs it).
+- **`429 Too Many Requests` while experimenting:** you hit a rate limit. Wait for `Retry-After`,
+  clear the counters (`redis-cli --scan --pattern 'rl:*' | xargs redis-cli DEL`), or set
+  `app.rate-limit.enabled=false` locally.

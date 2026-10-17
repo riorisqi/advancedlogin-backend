@@ -31,6 +31,22 @@ server:
         secure: false       # dev runs on plain http; must be true behind HTTPS
 
 app:
+  # Optional offline IP geolocation (MaxMind .mmdb, e.g. GeoLite2-City or DB-IP City Lite).
+  # Without it, public IPs show no location; private/LAN IPs always show "Local network".
+  geoip:
+    database: ${APP_GEOIP_DATABASE:}
+
+  # Fixed-window limits, counted in Redis (rl:*) so every backend instance shares them.
+  # The *-ip rules are per client IP (HTTP filter); login-user is per username (login use case).
+  rate-limit:
+    enabled: true
+    rules:
+      qr-create:   { requests: 10, window: 1m }   # new QR codes per IP
+      qr-status:   { requests: 60, window: 1m }   # snapshot polls + SSE (re)connects per IP
+      qr-exchange: { requests: 10, window: 1m }   # code redemptions per IP
+      login-ip:    { requests: 20, window: 1m }   # password logins per IP
+      login-user:  { requests: 5,  window: 1m }   # password logins per username, from any IP
+
   qr:
     # How long a QR session may sit in each state (each transition restarts the clock).
     timeouts:

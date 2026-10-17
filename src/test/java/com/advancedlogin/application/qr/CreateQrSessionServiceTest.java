@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,7 +30,8 @@ class CreateQrSessionServiceTest {
     private final Iterator<String> tokens = List.of(ID_TOKEN, SECRET_TOKEN).iterator();
 
     private final CreateQrSessionService service = new CreateQrSessionService(
-            store, tokens::next, Clock.fixed(NOW, ZoneOffset.UTC), TIMEOUTS);
+            store, tokens::next, ip -> ip.startsWith("203.") ? Optional.of("Somewhere, Testland") : Optional.empty(),
+            Clock.fixed(NOW, ZoneOffset.UTC), TIMEOUTS);
 
     @Test
     void createsPendingSessionThatExpiresAfterTtl() {
@@ -40,7 +42,7 @@ class CreateQrSessionServiceTest {
         QrSession session = created.session();
         assertThat(session.id().value()).isEqualTo(ID_TOKEN);
         assertThat(session.status()).isEqualTo(QrStatus.PENDING);
-        assertThat(session.requestingDevice()).isEqualTo(device);
+        assertThat(session.requestingDevice()).isEqualTo(device.withLocation("Somewhere, Testland"));
         assertThat(session.createdAt()).isEqualTo(NOW);
         assertThat(session.expiresAt()).isEqualTo(NOW.plusSeconds(90));
         assertThat(store.findById(session.id())).contains(session);

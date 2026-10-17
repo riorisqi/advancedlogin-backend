@@ -83,6 +83,7 @@ class RedisQrSessionStore implements QrSessionStore {
                 "bindHash", s.bindingHash().value(),
                 "ip", s.requestingDevice().ipAddress(),
                 "userAgent", s.requestingDevice().userAgent(),
+                "location", s.requestingDevice().approximateLocation() == null ? "" : s.requestingDevice().approximateLocation(),
                 "createdAt", millis(s.createdAt()),
                 "expiresAt", millis(s.expiresAt()),
                 "exchangeCode", s.exchangeCode() == null ? "" : s.exchangeCode()));
@@ -100,7 +101,7 @@ class RedisQrSessionStore implements QrSessionStore {
                 id,
                 QrStatus.valueOf((String) h.get("status")),
                 new BindingHash((String) h.get("bindHash")),
-                new RequestingDevice((String) h.get("ip"), (String) h.get("userAgent")),
+                new RequestingDevice((String) h.get("ip"), (String) h.get("userAgent"), (String) h.get("location")),
                 instant(h.get("createdAt")),
                 instant(h.get("expiresAt")),
                 scannedBy == null ? null : new UserId(scannedBy),

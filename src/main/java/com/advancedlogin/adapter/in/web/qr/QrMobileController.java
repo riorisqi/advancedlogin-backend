@@ -63,12 +63,13 @@ class QrMobileController {
      * notice it isn't their computer.
      */
     record LoginRequestResponse(String qrId, Instant requestedAt, String browser, String os, String ipAddress,
-                                Instant expiresAt) {
+                                String approximateLocation, Instant expiresAt) {
 
         static LoginRequestResponse from(QrSession session) {
             UserAgentSummary ua = UserAgentSummary.parse(session.requestingDevice().userAgent());
             return new LoginRequestResponse(session.id().value(), session.createdAt(), ua.browser(), ua.os(),
-                    session.requestingDevice().ipAddress(), session.expiresAt());
+                    session.requestingDevice().ipAddress(), session.requestingDevice().approximateLocation(),
+                    session.expiresAt());
         }
     }
 }

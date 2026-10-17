@@ -48,7 +48,8 @@ class QrApprovalFlowIntegrationTest extends RedisIntegrationTest {
 
         HttpResponse<String> scan = alicePhone.post(qrPath("/scan"), "");
         assertThat(scan.statusCode()).isEqualTo(200);
-        assertThat(scan.body()).contains("\"qrId\":\"" + qrId + "\"", "\"ipAddress\":", "\"browser\":", "\"os\":");
+        assertThat(scan.body()).contains("\"qrId\":\"" + qrId + "\"", "\"ipAddress\":", "\"browser\":", "\"os\":",
+                "\"approximateLocation\":\"Local network\"");
         assertThat(desktopStatus()).contains("\"status\":\"SCANNED\"");
 
         assertThat(alicePhone.post(qrPath("/approve"), "").statusCode()).isEqualTo(204);

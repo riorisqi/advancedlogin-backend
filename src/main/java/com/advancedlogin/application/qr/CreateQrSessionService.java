@@ -1,6 +1,7 @@
 package com.advancedlogin.application.qr;
 
 import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase;
+import com.advancedlogin.application.qr.port.out.IpLocationLookup;
 import com.advancedlogin.application.qr.port.out.QrSessionStore;
 import com.advancedlogin.application.qr.port.out.RandomTokenGenerator;
 import com.advancedlogin.domain.qr.BindingHash;
@@ -15,12 +16,15 @@ public class CreateQrSessionService implements CreateQrSessionUseCase {
 
     private final QrSessionStore store;
     private final RandomTokenGenerator tokens;
+    private final IpLocationLookup locations;
     private final Clock clock;
     private final QrTimeouts timeouts;
 
-    public CreateQrSessionService(QrSessionStore store, RandomTokenGenerator tokens, Clock clock, QrTimeouts timeouts) {
+    public CreateQrSessionService(QrSessionStore store, RandomTokenGenerator tokens, IpLocationLookup locations,
+                                  Clock clock, QrTimeouts timeouts) {
         this.store = store;
         this.tokens = tokens;
+        this.locations = locations;
         this.clock = clock;
         this.timeouts = timeouts;
     }
@@ -32,7 +36,10 @@ public class CreateQrSessionService implements CreateQrSessionUseCase {
         QrSessionId id = new QrSessionId(tokens.newToken());
         String bindingSecret = tokens.newToken();
 
-        QrSession session = QrSession.pending(id, BindingHash.of(bindingSecret), device, clock.instant(), timeouts);
+        // Looked up once, here, and stored with the session: the phone shows it before approving.
+        RequestingDevice located = device.withLocation(locations.approximateLocation(device.ipAddress()).orElse(null));
+
+        QrSession session = QrSession.pending(id, BindingHash.of(bindingSecret), located, clock.instant(), timeouts);
         store.create(session);
         return new CreatedQrSession(session, bindingSecret);
     }

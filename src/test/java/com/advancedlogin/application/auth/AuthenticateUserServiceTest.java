@@ -2,10 +2,13 @@ package com.advancedlogin.application.auth;
 
 import com.advancedlogin.application.auth.port.out.PasswordHasher;
 import com.advancedlogin.application.auth.port.out.UserRepository;
+import com.advancedlogin.application.ratelimit.RateLimitDecision;
+import com.advancedlogin.application.ratelimit.TooManyRequestsException;
 import com.advancedlogin.domain.user.User;
 import com.advancedlogin.domain.user.UserId;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -28,7 +31,12 @@ class AuthenticateUserServiceTest {
             return alice.id().equals(id) ? Optional.of(alice) : Optional.empty();
         }
     };
-    private final AuthenticateUserService service = new AuthenticateUserService(users, hasher);
+    private boolean overLimit = false;
+    private final List<String> limitedSubjects = new ArrayList<>();
+    private final AuthenticateUserService service = new AuthenticateUserService(users, hasher, (rule, subject) -> {
+        limitedSubjects.add(rule + ":" + subject);
+        return overLimit ? new RateLimitDecision(false, Duration.ofSeconds(30)) : RateLimitDecision.allow();
+    });
 
     @Test
     void returnsUserWhenPasswordMatches() {
@@ -49,6 +57,16 @@ class AuthenticateUserServiceTest {
                 .isInstanceOf(InvalidCredentialsException.class);
         // Timing defence: a hash comparison happens even though the user doesn't exist.
         assertThat(hasher.checkedHashes).hasSize(1);
+    }
+
+    @Test
+    void perUsernameLimitStopsGuessingBeforeThePasswordIsChecked() {
+        overLimit = true;
+        hasher.checkedHashes.clear();
+
+        assertThatThrownBy(() -> service.authenticate("  Alice ", "secret")).isInstanceOf(TooManyRequestsException.class);
+        assertThat(hasher.checkedHashes).as("no password check while limited").isEmpty();
+        assertThat(limitedSubjects).containsExactly("login-user:alice");
     }
 
     /** Fake hasher: "hash" is just a prefix, and it records what it was asked to compare. */
