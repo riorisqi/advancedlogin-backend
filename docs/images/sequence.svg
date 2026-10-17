@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 880" font-family="Segoe UI, system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker>
+    <marker id="as" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/></marker>
+  </defs>
+  <rect width="1000" height="880" fill="#ffffff"/>
+  <text x="30" y="38" font-size="20" font-weight="700" fill="#0f172a">QR login — full sequence</text>
+  <rect x="20" y="120" width="960" height="180" rx="10" fill="#eff6ff" fill-opacity="0.55" stroke="#2563eb" stroke-opacity="0.35"/>
+  <text x="32" y="140" font-size="13" font-weight="700" fill="#2563eb">1 · Create QR &amp; subscribe</text>
+  <rect x="20" y="310" width="960" height="170" rx="10" fill="#f0fdf4" fill-opacity="0.55" stroke="#16a34a" stroke-opacity="0.35"/>
+  <text x="32" y="330" font-size="13" font-weight="700" fill="#16a34a">2 · Phone scans</text>
+  <rect x="20" y="490" width="960" height="160" rx="10" fill="#f5f3ff" fill-opacity="0.55" stroke="#7c3aed" stroke-opacity="0.35"/>
+  <text x="32" y="510" font-size="13" font-weight="700" fill="#7c3aed">3 · User approves</text>
+  <rect x="20" y="660" width="960" height="145" rx="10" fill="#fff7ed" fill-opacity="0.55" stroke="#ea580c" stroke-opacity="0.35"/>
+  <text x="32" y="680" font-size="13" font-weight="700" fill="#ea580c">4 · Exchange code → logged in</text>
+  <line x1="150" y1="104" x2="150" y2="812" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <rect x="55" y="60" width="190" height="44" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="150" y="88" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">Desktop browser</text>
+  <line x1="500" y1="104" x2="500" y2="812" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <rect x="405" y="60" width="190" height="44" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="500" y="88" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">Backend (+ Redis)</text>
+  <line x1="850" y1="104" x2="850" y2="812" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <rect x="755" y="60" width="190" height="44" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="850" y="88" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">Phone (logged in)</text>
+  <line x1="150" y1="165" x2="496" y2="165" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="325.0" y="157" text-anchor="middle" font-size="12" fill="#1e293b">POST /api/qr/sessions</text>
+  <rect x="330" y="175" width="340" height="26" rx="6" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="500" y="192" text-anchor="middle" font-size="11" font-family="Consolas, monospace" fill="#7f1d1d">HSET qr:s:{id} status=PENDING bindHash=… EX 90</text>
+  <line x1="500" y1="225" x2="154" y2="225" stroke="#334155" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#a)"/>
+  <text x="325.0" y="217" text-anchor="middle" font-size="12" fill="#1e293b">201 {qrId, qrContent, expiresAt} + cookie qr_bind</text>
+  <line x1="150" y1="260" x2="496" y2="260" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="325.0" y="252" text-anchor="middle" font-size="12" fill="#1e293b">GET …/{qrId}/events  (EventSource, qr_bind)</text>
+  <line x1="500" y1="290" x2="154" y2="290" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="8 5" marker-end="url(#as)"/>
+  <text x="325.0" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#c2410c">SSE  status: PENDING</text>
+  <rect x="740.0" y="340" width="220" height="26" rx="6" fill="#fefce8" stroke="#facc15"/>
+  <text x="850" y="357" text-anchor="middle" font-size="11" fill="#713f12">camera reads QR on desktop screen</text>
+  <line x1="850" y1="385" x2="504" y2="385" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="675.0" y="377" text-anchor="middle" font-size="12" fill="#1e293b">POST …/{qrId}/scan  (SESSION cookie)</text>
+  <rect x="330" y="395" width="340" height="26" rx="6" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="500" y="412" text-anchor="middle" font-size="11" font-family="Consolas, monospace" fill="#7f1d1d">CAS PENDING→SCANNED · scannedBy=user · EX 60</text>
+  <line x1="500" y1="445" x2="846" y2="445" stroke="#334155" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#a)"/>
+  <text x="675.0" y="437" text-anchor="middle" font-size="12" fill="#1e293b">200 {browser, OS, IP, location, time}</text>
+  <line x1="500" y1="470" x2="154" y2="470" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="8 5" marker-end="url(#as)"/>
+  <text x="325.0" y="462" text-anchor="middle" font-size="12" font-weight="600" fill="#c2410c">SSE  status: SCANNED</text>
+  <rect x="40.0" y="340" width="220" height="26" rx="6" fill="#fefce8" stroke="#facc15"/>
+  <text x="150" y="357" text-anchor="middle" font-size="11" fill="#713f12">shows QR, waits</text>
+  <rect x="40.0" y="520" width="220" height="26" rx="6" fill="#fefce8" stroke="#facc15"/>
+  <text x="150" y="537" text-anchor="middle" font-size="11" fill="#713f12">“Confirm on your phone”</text>
+  <rect x="740.0" y="520" width="220" height="26" rx="6" fill="#fefce8" stroke="#facc15"/>
+  <text x="850" y="537" text-anchor="middle" font-size="11" fill="#713f12">user checks device info → Approve</text>
+  <line x1="850" y1="565" x2="504" y2="565" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="675.0" y="557" text-anchor="middle" font-size="12" fill="#1e293b">POST …/{qrId}/approve</text>
+  <rect x="330" y="575" width="340" height="26" rx="6" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="500" y="592" text-anchor="middle" font-size="11" font-family="Consolas, monospace" fill="#7f1d1d">CAS SCANNED→CONFIRMED · code=random · EX 30</text>
+  <line x1="500" y1="625" x2="846" y2="625" stroke="#334155" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#a)"/>
+  <text x="675.0" y="617" text-anchor="middle" font-size="12" fill="#1e293b">204</text>
+  <line x1="500" y1="640" x2="154" y2="640" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="8 5" marker-end="url(#as)"/>
+  <text x="325.0" y="632" text-anchor="middle" font-size="12" font-weight="600" fill="#c2410c">SSE  status: CONFIRMED {code}</text>
+  <line x1="150" y1="705" x2="496" y2="705" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="325.0" y="697" text-anchor="middle" font-size="12" fill="#1e293b">POST …/{qrId}/exchange {code}  + qr_bind</text>
+  <rect x="330" y="715" width="340" height="26" rx="6" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="500" y="732" text-anchor="middle" font-size="11" font-family="Consolas, monospace" fill="#7f1d1d">CAS CONFIRMED→CONSUMED · check bindHash + code</text>
+  <line x1="500" y1="765" x2="154" y2="765" stroke="#334155" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#a)"/>
+  <text x="325.0" y="757" text-anchor="middle" font-size="12" fill="#1e293b">204 + Set-Cookie SESSION (new id), clear qr_bind</text>
+  <line x1="150" y1="797" x2="496" y2="797" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="325.0" y="789" text-anchor="middle" font-size="12" fill="#1e293b">GET /api/me  → logged in ✓</text>
+  <line x1="30" y1="845" x2="70" y2="845" stroke="#334155" stroke-width="2" marker-end="url(#a)"/><text x="78" y="849" font-size="12" fill="#475569">request</text>
+  <line x1="150" y1="845" x2="190" y2="845" stroke="#334155" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#a)"/><text x="198" y="849" font-size="12" fill="#475569">response</text>
+  <line x1="280" y1="845" x2="320" y2="845" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="8 5" marker-end="url(#as)"/><text x="328" y="849" font-size="12" fill="#475569">SSE push</text>
+  <rect x="410" y="836" width="22" height="18" rx="4" fill="#fef2f2" stroke="#fca5a5"/><text x="440" y="849" font-size="12" fill="#475569">atomic Redis op (Lua)</text>
+  <rect x="590" y="836" width="22" height="18" rx="4" fill="#fefce8" stroke="#facc15"/><text x="620" y="849" font-size="12" fill="#475569">what the user sees / does</text>
+</svg>
