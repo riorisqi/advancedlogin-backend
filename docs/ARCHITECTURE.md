@@ -1,7 +1,7 @@
 # AdvancedLogin — Architecture & API Design
 
-Status: **v1, all 8 milestones implemented** (§10). Decisions marked ✅ were the recommendations we went with.
-Want to break it? See §11 *Attack yourself*. Study guides: [CLEAN_ARCHITECTURE.md](CLEAN_ARCHITECTURE.md),
+Status: **v1, all 8 milestones implemented** ([§10](#10-build-order-milestones)). Decisions marked ✅ were the recommendations we went with.
+Want to break it? See [§11 *Attack yourself*](#11-attack-yourself). Study guides: [CLEAN_ARCHITECTURE.md](CLEAN_ARCHITECTURE.md),
 [SECURITY.md](SECURITY.md) (what's still missing).
 
 ---
@@ -291,7 +291,9 @@ Notes:
 
 ---
 
-## 7. Rate limiting (implemented in slice 8)
+## 7. Rate limiting
+
+Implemented in slice 8.
 
 | Rule | Applies to | Limit | Why |
 |---|---|---|---|
@@ -487,7 +489,7 @@ those live behind ports, which `app/DependenciesProvider` fills with real implem
 6. **Exchange** (done) — one-time code → session cookie → desktop logged in.
 7. **Phone camera scanner** (done) + HTTPS dev setup (`bun run dev:lan`).
 8. **Hardening** (done) — rate limiting, device/IP display, GeoIP, QR auto-refresh, tests
-   (Testcontainers Redis), attack-yourself exercises (see §11).
+   (Testcontainers Redis), attack-yourself exercises (see [§11](#11-attack-yourself)).
 
 ---
 

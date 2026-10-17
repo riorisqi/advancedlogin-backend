@@ -52,7 +52,8 @@ Full architecture & API design: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Frontend: domain/ has no React; presentation/ uses hooks from application/, never
   infrastructure/. Ports filled in app/DependenciesProvider. Enforced by oxlint
   `no-restricted-imports` overrides.
-- Details: ARCHITECTURE.md §9 and the study guide CLEAN_ARCHITECTURE.md.
+- Details: [ARCHITECTURE.md §9](ARCHITECTURE.md#9-project-structure--clean-architecture) and the study guide
+  [CLEAN_ARCHITECTURE.md](CLEAN_ARCHITECTURE.md).
 
 ## Running locally
 - Backend needs the `dev` profile (test accounts + dev Redis password): `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`.
@@ -65,4 +66,4 @@ Status, audit-logging plan and prioritized backlog: [SECURITY.md](SECURITY.md).
 - Two separate git repos under `AdvancedLogin/`: `backend/` (this one, also holds
   docs + docker-compose) and `frontend/`. The top-level folder is not a repo.
 - Work in vertical slices: each milestone = backend endpoint first, then the
-  frontend for it, ending with something clickable (see ARCHITECTURE.md §10).
+  frontend for it, ending with something clickable (see [ARCHITECTURE.md §10](ARCHITECTURE.md#10-build-order-milestones)).

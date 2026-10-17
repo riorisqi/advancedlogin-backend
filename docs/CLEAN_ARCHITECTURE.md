@@ -3,7 +3,8 @@
 How the backend and the frontend are structured, why, and what it costs. Written as a study
 guide: read it once top to bottom, then come back to the section you need.
 
-Related: [ARCHITECTURE.md](ARCHITECTURE.md) (the QR login design itself; §9 has the folder trees).
+Related: [ARCHITECTURE.md](ARCHITECTURE.md) (the QR login design itself); its
+[§9](ARCHITECTURE.md#9-project-structure--clean-architecture) has the folder trees.
 
 ---
 
@@ -304,7 +305,7 @@ as the simplest example).
 | `adapter.common.redis.QrEventChannel` | Publisher (out) and subscriber (in) must share the Pub/Sub format but may not import each other |
 | Inbound adapter → inbound adapter (`RedisQrEventSubscriber` → `QrStatusStreams`) | Both are "edge" code delivering to the browser; no business rule in between |
 | `CheckRateLimitUseCase` used inside `AuthenticateUserService` | One use case using another inbound port within the application layer is fine |
-| React hooks in the frontend `application/` | See §4.5 |
+| React hooks in the frontend `application/` | See [§4.5](#45-pragmatic-choices-on-the-frontend) |
 
 ---
 
@@ -328,7 +329,7 @@ to it.
 1. **Swap an adapter.** Write `JdbcUserRepository implements UserRepository` (H2 is enough).
    Only `adapter.out.persistence` and wiring should change. Do the use-case tests still pass
    untouched?
-2. **Add a port.** Add `SecurityEvents` (see [SECURITY.md](SECURITY.md) item A1) as an outbound
+2. **Add a port.** Add `SecurityEvents` (see [SECURITY.md, A1](SECURITY.md#2-audit-logging-a1-p1)) as an outbound
    port, call it from `QrSessionService`, implement it with SLF4J. Check that ArchUnit stays green.
 3. **Break the rule on purpose.** Inject `StringRedisTemplate` into `QrSessionService` and watch
    `CleanArchitectureTest` fail. Then undo it.

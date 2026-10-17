@@ -112,7 +112,7 @@ src/main/java/com/advancedlogin/
 src/main/resources/lua/   qr_create.lua, qr_transition.lua (atomic compare-and-set)
 ```
 
-Details and the reasoning behind each layer: [CLEAN_ARCHITECTURE.md](docs/CLEAN_ARCHITECTURE.md).
+Details and the reasoning behind each layer: [CLEAN_ARCHITECTURE.md §3](docs/CLEAN_ARCHITECTURE.md#3-backend-spring-boot).
 
 ## API at a glance
 
@@ -127,7 +127,7 @@ Details and the reasoning behind each layer: [CLEAN_ARCHITECTURE.md](docs/CLEAN_
 | `POST /api/qr/sessions/{id}/exchange` | desktop (`qr_bind`) | trade one-time code for a session |
 
 All POSTs need the CSRF header (`X-XSRF-TOKEN`). Errors are RFC 7807 `application/problem+json`.
-Full contract: [ARCHITECTURE.md §5](docs/ARCHITECTURE.md).
+Full contract: [ARCHITECTURE.md §5](docs/ARCHITECTURE.md#5-api).
 
 ## Configuration
 
@@ -136,7 +136,7 @@ Full contract: [ARCHITECTURE.md §5](docs/ARCHITECTURE.md).
 | `app.qr.timeouts.pending / scanned / confirmed / terminal` | 90s / 60s / 30s / 15s | lifetime of each QR state |
 | `app.qr.approve-base-url` | empty → the desktop's `Origin` | base of the URL inside the QR; the phone must reach it. Set it in production (env: `APP_QR_APPROVE_BASE_URL`) |
 | `app.qr.secure-cookies` | `false` | set `true` behind HTTPS |
-| `app.rate-limit.enabled` / `.rules.<name>.requests` / `.window` | `true`, see `application.yml` | per-IP and per-username limits ([ARCHITECTURE.md §7](docs/ARCHITECTURE.md)) |
+| `app.rate-limit.enabled` / `.rules.<name>.requests` / `.window` | `true`, see `application.yml` | per-IP and per-username limits ([ARCHITECTURE.md §7](docs/ARCHITECTURE.md#7-rate-limiting)) |
 | `app.geoip.database` | empty | optional MaxMind-format `.mmdb` (GeoLite2-City / DB-IP City Lite) for "City, Country" on the phone (env: `APP_GEOIP_DATABASE`). LAN IPs always show "Local network" |
 | `spring.data.redis.host / port / password` | `localhost` / `6379` / `REDIS_PASSWORD` | Redis (dev profile defaults the password to `advancedlogin-dev`) |
 | profile `dev` | off | test accounts + dev Redis password (`application-dev.yml`) |
