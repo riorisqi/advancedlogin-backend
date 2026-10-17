@@ -2,6 +2,7 @@ package com.advancedlogin.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -28,6 +29,8 @@ class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/error").permitAll()
+                        // The desktop asking for a QR is, by definition, not logged in yet.
+                        .requestMatchers(HttpMethod.POST, "/api/qr/sessions").permitAll()
                         .anyRequest().authenticated())
 
                 // Session cookie auth => CSRF protection is mandatory. spa(): token in a JS-readable

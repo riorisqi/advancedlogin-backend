@@ -97,9 +97,9 @@ Conventions: JSON, errors as RFC 7807 `application/problem+json`
 
 ### 5.1 Desktop (anonymous)
 
-#### `POST /api/qr/sessions` — create a QR session
-- Rate limited per IP (e.g. 10/min).
-- Response `201`:
+#### `POST /api/qr/sessions` — create a QR session (implemented in slice 3)
+- Anonymous, but CSRF-protected like every POST. Rate limiting per IP comes in slice 8.
+- Response `201` + `Location: /api/qr/sessions/{qrId}`:
   ```json
   {
     "qrId": "k3J9…(43 chars)",
@@ -107,8 +107,14 @@ Conventions: JSON, errors as RFC 7807 `application/problem+json`
     "expiresAt": "2026-10-17T12:01:30Z"
   }
   ```
-- Also sets cookie `qr_bind=<random 256-bit secret>; HttpOnly; Secure; SameSite=Strict; Path=/api/qr; Max-Age=120`.
-  Redis stores only `SHA-256(secret)`.
+- Also sets cookie `qr_bind=<random 256-bit secret>; HttpOnly; SameSite=Strict; Path=/api/qr; Max-Age=300`
+  (+ `Secure` when `app.qr.secure-cookies=true`). Redis stores only `SHA-256(secret)`.
+  Max-Age outlives any session (90+60+30s); Redis TTL, not the cookie, decides expiry.
+  A new QR overwrites the cookie, so only the newest QR in a browser can complete.
+- `qrContent` base URL comes from `app.qr.approve-base-url` (the phone must be able to reach it).
+- Stored atomically by `lua/qr_create.lua` (HSET + PEXPIRE in one script: no key without a TTL).
+- Frontend (`useQrLogin`): countdown from the *remaining lifetime* (`expiresAt` − server `Date`
+  header) to survive clock skew; auto-refreshes an expired QR 3×, then shows "Reload QR code".
 
 > **Why the binding cookie?** The QR is on screen — anyone near can photograph it.
 > `qrId` is therefore *semi-public*. The binding secret never leaves the requesting
@@ -247,8 +253,8 @@ Routes (React Router):
 
 | Route | Who | What |
 |---|---|---|
-| `/login` | desktop | create session → render QR (`qrcode.react`) → `EventSource` → react to status; auto-refresh QR on EXPIRED (max 3×, then "Click to reload") |
-| `/` | desktop | protected home, shows `/api/me` |
+| `/` | desktop | signed out: create session → render QR (`qrcode.react`) → `EventSource` → react to status; auto-refresh QR on EXPIRED (max 3×, then "Click to reload") |
+| `/status` | any | backend + Redis health |
 | `/m/login` | phone | username/password form |
 | `/m/scan` | phone | camera scanner (`@zxing/browser` or `html5-qrcode`), extracts qrId → navigates to approve |
 | `/m/approve/:qrId` | phone | calls `scan`, shows device/IP/location/time, **Approve / Reject** buttons |
@@ -371,7 +377,7 @@ those live behind ports, which `app/DependenciesProvider` fills with real implem
 
 1. **Skeleton** (done) — docker-compose Redis, Spring Boot app, Vite app, proxy, `/api/health`.
 2. **Normal login** (done) — users, `/api/auth/login`, Spring Session in Redis, CSRF, `/m/login`, `/api/me`.
-3. **QR create + render** — `POST /api/qr/sessions`, binding cookie, QR on `/login`.
+3. **QR create + render** (done) — `POST /api/qr/sessions`, binding cookie, QR on `/` (desktop).
 4. **Status via polling** — `GET /api/qr/sessions/{id}`, scan/approve/reject + Lua CAS.
    End-to-end works with a hard-coded qrId pasted on the phone.
 5. **SSE** — replace polling with `EventSource`; Redis pub/sub fan-out.

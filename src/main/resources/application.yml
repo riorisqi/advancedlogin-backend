@@ -27,6 +27,13 @@ server:
         secure: false       # dev runs on plain http; must be true behind HTTPS
 
 app:
+  qr:
+    pending-ttl: 90s
+    # Where the phone opens the approve page. The phone must be able to reach this URL:
+    # localhost for now, the PC's LAN address over https in slice 7.
+    approve-base-url: http://localhost:5173
+    secure-cookies: false   # true behind HTTPS
+
   # Dev-only test accounts (no sign-up flow in this project). Passwords are hashed at startup.
   seed-users:
     - username: alice

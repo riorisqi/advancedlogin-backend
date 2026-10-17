@@ -9,8 +9,16 @@ import com.advancedlogin.application.auth.port.out.UserRepository;
 import com.advancedlogin.application.health.CheckHealthService;
 import com.advancedlogin.application.health.port.in.CheckHealthUseCase;
 import com.advancedlogin.application.health.port.out.DataStoreHealthPort;
+import com.advancedlogin.application.qr.CreateQrSessionService;
+import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase;
+import com.advancedlogin.application.qr.port.out.QrSessionStore;
+import com.advancedlogin.application.qr.port.out.RandomTokenGenerator;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Clock;
+import java.time.Duration;
 
 /**
  * Composition root for use cases: the only place that knows both the application services
@@ -32,5 +40,17 @@ class UseCaseConfig {
     @Bean
     GetUserUseCase getUserUseCase(UserRepository users) {
         return new GetUserService(users);
+    }
+
+    @Bean
+    CreateQrSessionUseCase createQrSessionUseCase(QrSessionStore store, RandomTokenGenerator tokens, Clock clock,
+                                                  @Value("${app.qr.pending-ttl}") Duration pendingTtl) {
+        return new CreateQrSessionService(store, tokens, clock, pendingTtl);
+    }
+
+    /** Use cases ask a Clock for "now" instead of calling Instant.now(), so tests can fix time. */
+    @Bean
+    Clock clock() {
+        return Clock.systemUTC();
     }
 }
