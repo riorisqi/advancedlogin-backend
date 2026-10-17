@@ -9,7 +9,7 @@ without typing a password there.
 This repo is the **Spring Boot API** and also holds the **design docs**.
 The React app lives in the sibling repo [`advancedlogin-frontend`](https://github.com/riorisqi/advancedlogin-frontend).
 
-| | |
+| Description | References |
 |---|---|
 | **How to run it and test it (incl. a real phone)** | [docs/RUNNING.md](docs/RUNNING.md) |
 | Design, API, state machine, Redis keys | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
