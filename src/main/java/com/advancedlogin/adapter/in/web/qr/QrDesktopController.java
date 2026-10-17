@@ -4,10 +4,13 @@ import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase;
 import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase.CreatedQrSession;
 import com.advancedlogin.application.qr.port.in.GetQrSessionStatusUseCase;
 import com.advancedlogin.domain.qr.QrSession;
+import com.advancedlogin.domain.qr.QrSessionId;
+import com.advancedlogin.domain.qr.QrStatusUpdate;
 import com.advancedlogin.domain.qr.RequestingDevice;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.net.URI;
 import java.time.Duration;
@@ -34,15 +38,18 @@ class QrDesktopController {
 
     private final CreateQrSessionUseCase createQrSession;
     private final GetQrSessionStatusUseCase getQrSessionStatus;
+    private final QrStatusStreams streams;
     private final String approveBaseUrl;
     private final boolean secureCookies;
 
     QrDesktopController(CreateQrSessionUseCase createQrSession,
                         GetQrSessionStatusUseCase getQrSessionStatus,
+                        QrStatusStreams streams,
                         @Value("${app.qr.approve-base-url}") String approveBaseUrl,
                         @Value("${app.qr.secure-cookies:false}") boolean secureCookies) {
         this.createQrSession = createQrSession;
         this.getQrSessionStatus = getQrSessionStatus;
+        this.streams = streams;
         this.approveBaseUrl = approveBaseUrl;
         this.secureCookies = secureCookies;
     }
@@ -80,6 +87,31 @@ class QrDesktopController {
                             @CookieValue(name = BIND_COOKIE, required = false) String bindingSecret) {
         QrSession session = getQrSessionStatus.getStatus(QrIds.parse(qrId), bindingSecret);
         return new QrStatusResponse(session.status().name(), session.expiresAt());
+    }
+
+    /**
+     * Live status stream (Server-Sent Events): {@code event: status} with the same JSON as above,
+     * plus {@code serverTime}. Same qr_bind check as the snapshot endpoint; a bad cookie gets a
+     * plain 404 before any stream is opened, and EventSource gives up on non-200 responses.
+     */
+    @GetMapping(path = "/api/qr/sessions/{qrId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    SseEmitter events(@PathVariable String qrId,
+                      @CookieValue(name = BIND_COOKIE, required = false) String bindingSecret) {
+        QrSessionId id = QrIds.parse(qrId);
+        // Check the binding first, so strangers never get a stream registered.
+        getQrSessionStatus.getStatus(id, bindingSecret);
+
+        // Order matters: register the stream, THEN read the snapshot. If an update lands in
+        // between, we send it twice (harmless: snapshots are idempotent). The other order could
+        // miss it forever.
+        SseEmitter emitter = streams.open(id);
+        try {
+            QrSession snapshot = getQrSessionStatus.getStatus(id, bindingSecret);
+            streams.send(emitter, QrStatusUpdate.of(snapshot));
+        } catch (RuntimeException e) {
+            emitter.complete(); // expired in the meantime; the client will see the stream end
+        }
+        return emitter;
     }
 
     /** Deliberately minimal: the desktop learns nothing about *who* scanned until login completes. */

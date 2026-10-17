@@ -50,6 +50,69 @@ public final class TestBrowser {
         return send(jsonPost(path, json));
     }
 
+    /**
+     * Opens a Server-Sent Events stream like EventSource would, and collects the {@code data:}
+     * lines in a queue on a background thread. Returns once the response headers have arrived.
+     */
+    public SseStream openEventStream(String path) {
+        HttpRequest request = HttpRequest.newBuilder(uri(path)).header("Accept", "text/event-stream").GET().build();
+        HttpResponse<java.util.stream.Stream<String>> response;
+        try {
+            response = http.send(request, HttpResponse.BodyHandlers.ofLines());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+        return new SseStream(response);
+    }
+
+    /** Minimal SSE reader: we only care about {@code data:} lines, and whether the stream ended. */
+    public static final class SseStream implements AutoCloseable {
+
+        /** Marker put in the queue when the server closes the stream. */
+        public static final String END = "<end of stream>";
+
+        private final HttpResponse<java.util.stream.Stream<String>> response;
+        private final java.util.concurrent.BlockingQueue<String> data = new java.util.concurrent.LinkedBlockingQueue<>();
+
+        SseStream(HttpResponse<java.util.stream.Stream<String>> response) {
+            this.response = response;
+            Thread.ofVirtual().start(() -> {
+                try (var lines = response.body()) {
+                    lines.filter(l -> l.startsWith("data:")).forEach(l -> data.add(l.substring(5).trim()));
+                } catch (RuntimeException ignored) {
+                    // connection closed by close()
+                }
+                data.add(END);
+            });
+        }
+
+        public int statusCode() {
+            return response.statusCode();
+        }
+
+        /** Next data payload, or fails the test after 5 seconds. */
+        public String next() {
+            try {
+                String value = data.poll(5, java.util.concurrent.TimeUnit.SECONDS);
+                if (value == null) {
+                    throw new AssertionError("no SSE event within 5s");
+                }
+                return value;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+        }
+
+        @Override
+        public void close() {
+            response.body().close();
+        }
+    }
+
     public Optional<String> cookie(String name) {
         return cookies.getCookieStore().getCookies().stream()
                 .filter(c -> c.getName().equals(name))

@@ -13,6 +13,7 @@ import com.advancedlogin.application.qr.CreateQrSessionService;
 import com.advancedlogin.application.qr.QrSessionService;
 import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase;
 import com.advancedlogin.application.qr.port.out.QrSessionStore;
+import com.advancedlogin.application.qr.port.out.QrStatusPublisher;
 import com.advancedlogin.application.qr.port.out.RandomTokenGenerator;
 import com.advancedlogin.domain.qr.QrTimeouts;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,8 +64,9 @@ class UseCaseConfig {
      * any of those four interfaces is asked for.
      */
     @Bean
-    QrSessionService qrSessionService(QrSessionStore store, Clock clock, QrTimeouts timeouts) {
-        return new QrSessionService(store, clock, timeouts);
+    QrSessionService qrSessionService(QrSessionStore store, QrStatusPublisher publisher, Clock clock,
+                                      QrTimeouts timeouts) {
+        return new QrSessionService(store, publisher, clock, timeouts);
     }
 
     /** Use cases ask a Clock for "now" instead of calling Instant.now(), so tests can fix time. */

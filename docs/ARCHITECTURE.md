@@ -125,26 +125,54 @@ Conventions: JSON, errors as RFC 7807 `application/problem+json`
 > camera app it still opens our phone page. Our in-app scanner just parses the id
 > out of it.
 
-#### `GET /api/qr/sessions/{qrId}/events` — SSE stream
-- Requires `qr_bind` cookie matching the session → else `404` (don't reveal existence).
+#### `GET /api/qr/sessions/{qrId}/events` — SSE stream (implemented in slice 5)
+- Requires `qr_bind` cookie matching the session → else plain `404` before any stream opens
+  (EventSource then gives up, and the frontend falls back to polling, which reports EXPIRED).
 - `Content-Type: text/event-stream`. First event is always the current snapshot.
 - Events (all `event: status`):
   ```
-  data: {"status":"PENDING","expiresAt":"…"}
-  data: {"status":"SCANNED","expiresAt":"…"}
-  data: {"status":"CONFIRMED","code":"Xy7…"}
-  data: {"status":"REJECTED"}
-  data: {"status":"EXPIRED"}
+  data: {"status":"PENDING","expiresAt":"…","serverTime":"…"}
+  data: {"status":"SCANNED","expiresAt":"…","serverTime":"…"}
+  data: {"status":"CONFIRMED","expiresAt":"…","serverTime":"…"}   (slice 6 adds the code)
+  data: {"status":"REJECTED","expiresAt":"…","serverTime":"…"}
   ```
-- Server closes the stream after a terminal status. Heartbeat comment `: ping` every
-  15s so proxies don't kill an idle connection.
-- Emitter timeout = remaining TTL; on timeout server sends `EXPIRED`.
+  `serverTime` replaces the `Date` header for clock-skew correction (EventSource hides headers).
+- Server closes the stream after a terminal status (REJECTED/CONSUMED). Heartbeat comment
+  `: ping` every 15s so proxies don't kill an idle connection.
+- Emitter timeout 4 min (longer than any session); EventSource reconnects on its own and gets
+  a fresh snapshot (or 404 → expired). Expiry itself isn't pushed: the desktop's countdown
+  handles it. (Redis keyspace notifications could push it; not worth the config for now.)
+- **Register-then-snapshot:** the controller registers the stream *before* reading the
+  snapshot, so an update landing in between is sent twice (harmless) instead of lost.
+
+**How an update travels (works with any number of backend instances):**
+
+```
+phone POST /approve ──▶ instance A: QrSessionService ──CAS ok──▶ QrStatusPublisher
+                                                                   │ (RedisQrStatusPublisher)
+                                                                   ▼
+                                     Redis PUBLISH qr:events:{qrId} "CONFIRMED:<expiresAt>"
+                                                                   │  PSUBSCRIBE qr:events:*
+                                         ┌─────────────────────────┴───────────────┐
+                                         ▼                                         ▼
+                        instance A: RedisQrEventSubscriber          instance B: RedisQrEventSubscriber
+                                         │                                         │
+                                 QrStatusStreams (local emitters)        QrStatusStreams ──▶ desktop's SSE
+```
+
+Code map: port `application/qr/port/out/QrStatusPublisher` · outbound
+`adapter/out/redis/RedisQrStatusPublisher` · inbound `adapter/in/redis/RedisQrEventSubscriber`
+· local streams `adapter/in/web/qr/QrStatusStreams` · shared wire format
+`adapter/common/redis/QrEventChannel` (the in/out adapters may not import each other) ·
+wiring `config/RedisMessagingConfig`. Frontend: port `QrStatusStream`, adapter
+`infrastructure/qr/sseQrStatusStream.ts`, fallback in `useQrLogin`.
 
 #### `GET /api/qr/sessions/{qrId}` — status snapshot (implemented in slice 4)
 - Requires the `qr_bind` cookie. Response `200 {"status":"SCANNED","expiresAt":"…"}`.
   Missing/wrong cookie, unknown or expired id → `404` (the desktop treats it as EXPIRED).
 - The desktop polls it every 2s (`useQrLogin`, `setTimeout` chain so polls never overlap).
-  Slice 5 replaces polling with SSE; this endpoint stays as the fallback.
+  Since slice 5 this is only the fallback: used when the SSE stream can't be (no EventSource,
+  or it closed for good).
 
 #### `POST /api/qr/sessions/{qrId}/exchange` — redeem the one-time code
 - Body `{"code":"Xy7…"}` + `qr_bind` cookie.
@@ -223,7 +251,7 @@ SCANNED → REJECTED (kept 15s so the desktop can show it), only by the user who
 | Key | Type | Content | TTL |
 |---|---|---|---|
 | `qr:s:{qrId}` | HASH | `status`, `bindHash`, `createdAt`, `ip`, `userAgent`, `scannedBy`, `scannedAt`, `code` | 90s PENDING → 60s after SCANNED → 30s after CONFIRMED → 15s after terminal (so a reconnecting stream still sees the final state) |
-| `qr:events:{qrId}` | Pub/Sub channel | JSON snapshot on every transition | — |
+| `qr:events:{qrId}` | Pub/Sub channel | `STATUS:expiresAtMillis` on every stored transition | — |
 | `rl:{bucket}:{ip}:{minute}` | STRING (counter) | `INCR` + `EXPIRE` fixed-window rate limit | 60s |
 | `spring:session:*` | managed by Spring Session | HTTP sessions | 30 min idle |
 
@@ -339,10 +367,12 @@ backend/
 │   │   ├── in/web/               # @RestControllers, request/response DTOs, SSE endpoint
 │   │   │   ├── health/           # HealthController                      ✔ slice 1
 │   │   │   ├── auth/
-│   │   │   └── qr/               # QrDesktopController, QrMobileController, SseEmitterRegistry
+│   │   │   └── qr/               # QrDesktopController, QrMobileController, QrStatusStreams (SSE)
+│   │   ├── in/redis/             # RedisQrEventSubscriber (Pub/Sub → local SSE streams)
+│   │   ├── common/redis/         # QrEventChannel (Pub/Sub wire format, shared by in & out)
 │   │   └── out/
 │   │       ├── redis/            # RedisDataStoreHealthAdapter ✔, RedisQrSessionStore (+ Lua),
-│   │       │                     # RedisQrEventPublisher (pub/sub)
+│   │       │                     # RedisQrStatusPublisher (pub/sub)
 │   │       └── persistence/      # user store (in-memory/H2 at first)
 │   └── config/                   # UseCaseConfig (@Bean wiring) ✔, SecurityConfig, SessionConfig
 └── src/main/resources/
@@ -390,7 +420,7 @@ those live behind ports, which `app/DependenciesProvider` fills with real implem
 3. **QR create + render** (done) — `POST /api/qr/sessions`, binding cookie, QR on `/` (desktop).
 4. **Status via polling** (done) — `GET /api/qr/sessions/{id}`, scan/approve/reject + Lua CAS, `/m/approve/:qrId`.
    End-to-end works with a hard-coded qrId pasted on the phone.
-5. **SSE** — replace polling with `EventSource`; Redis pub/sub fan-out.
+5. **SSE** (done) — replace polling with `EventSource` (polling kept as fallback); Redis pub/sub fan-out.
 6. **Exchange** — one-time code → session cookie → desktop logged in.
 7. **Phone camera scanner** + HTTPS dev setup.
 8. **Hardening** — rate limiting, device/IP display, GeoIP, QR auto-refresh, tests

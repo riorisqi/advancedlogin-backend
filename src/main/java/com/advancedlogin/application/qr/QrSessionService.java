@@ -5,9 +5,11 @@ import com.advancedlogin.application.qr.port.in.GetQrSessionStatusUseCase;
 import com.advancedlogin.application.qr.port.in.RejectQrSessionUseCase;
 import com.advancedlogin.application.qr.port.in.ScanQrSessionUseCase;
 import com.advancedlogin.application.qr.port.out.QrSessionStore;
+import com.advancedlogin.application.qr.port.out.QrStatusPublisher;
 import com.advancedlogin.domain.qr.IllegalQrTransitionException;
 import com.advancedlogin.domain.qr.QrSession;
 import com.advancedlogin.domain.qr.QrSessionId;
+import com.advancedlogin.domain.qr.QrStatusUpdate;
 import com.advancedlogin.domain.qr.QrTimeouts;
 import com.advancedlogin.domain.user.UserId;
 
@@ -23,11 +25,13 @@ public class QrSessionService
     private static final int MAX_ATTEMPTS = 2;
 
     private final QrSessionStore store;
+    private final QrStatusPublisher publisher;
     private final Clock clock;
     private final QrTimeouts timeouts;
 
-    public QrSessionService(QrSessionStore store, Clock clock, QrTimeouts timeouts) {
+    public QrSessionService(QrSessionStore store, QrStatusPublisher publisher, Clock clock, QrTimeouts timeouts) {
         this.store = store;
+        this.publisher = publisher;
         this.clock = clock;
         this.timeouts = timeouts;
     }
@@ -70,6 +74,9 @@ public class QrSessionService
                 return current; // idempotent no-op (same user scanning twice)
             }
             if (store.compareAndSet(current.status(), updated)) {
+                // Only after the write succeeded: listeners must never hear about a state that
+                // didn't actually get stored.
+                publisher.publish(QrStatusUpdate.of(updated));
                 return updated;
             }
         }
