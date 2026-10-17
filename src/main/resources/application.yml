@@ -8,6 +8,30 @@ spring:
       # Fail fast when Redis is down instead of hanging a request for the 60s default
       timeout: 2s
       connect-timeout: 2s
+  session:
+    # HTTP sessions live in Redis (Spring Session), so any backend instance can serve any
+    # request and a restart doesn't log everyone out.
+    timeout: 30m
+    data:
+      redis:
+        namespace: advancedlogin:session
 
 server:
   port: 8080
+  servlet:
+    session:
+      cookie:
+        name: SESSION
+        http-only: true     # JS can't read it -> an XSS bug can't steal the session
+        same-site: lax      # not sent on cross-site POSTs (CSRF defence in depth)
+        secure: false       # dev runs on plain http; must be true behind HTTPS
+
+app:
+  # Dev-only test accounts (no sign-up flow in this project). Passwords are hashed at startup.
+  seed-users:
+    - username: alice
+      display-name: Alice
+      password: alice-dev-pass
+    - username: bob
+      display-name: Bob
+      password: bob-dev-pass

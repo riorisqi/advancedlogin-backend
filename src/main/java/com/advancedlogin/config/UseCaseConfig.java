@@ -1,5 +1,11 @@
 package com.advancedlogin.config;
 
+import com.advancedlogin.application.auth.AuthenticateUserService;
+import com.advancedlogin.application.auth.GetUserService;
+import com.advancedlogin.application.auth.port.in.AuthenticateUserUseCase;
+import com.advancedlogin.application.auth.port.in.GetUserUseCase;
+import com.advancedlogin.application.auth.port.out.PasswordHasher;
+import com.advancedlogin.application.auth.port.out.UserRepository;
 import com.advancedlogin.application.health.CheckHealthService;
 import com.advancedlogin.application.health.port.in.CheckHealthUseCase;
 import com.advancedlogin.application.health.port.out.DataStoreHealthPort;
@@ -16,5 +22,15 @@ class UseCaseConfig {
     @Bean
     CheckHealthUseCase checkHealthUseCase(DataStoreHealthPort dataStoreHealthPort) {
         return new CheckHealthService(dataStoreHealthPort);
+    }
+
+    @Bean
+    AuthenticateUserUseCase authenticateUserUseCase(UserRepository users, PasswordHasher passwordHasher) {
+        return new AuthenticateUserService(users, passwordHasher);
+    }
+
+    @Bean
+    GetUserUseCase getUserUseCase(UserRepository users) {
+        return new GetUserService(users);
     }
 }

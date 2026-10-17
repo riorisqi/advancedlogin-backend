@@ -60,8 +60,9 @@ user?" via `SecurityContext`. We can add a bearer-token filter then.
 
 ### 2.3 Users store
 
-Start with an in-memory/H2 user table with a couple of seeded users (BCrypt
-passwords). Swap to Postgres later — not the focus of this project.
+In-memory user store (`adapter/out/persistence/InMemoryUserRepository`), seeded at startup from
+`app.seed-users` with passwords hashed via the `PasswordHasher` port (BCrypt). Swapping to
+Postgres later = one new `UserRepository` adapter; no use case changes.
 
 ---
 
@@ -150,8 +151,26 @@ Same auth and same payload as one SSE event.
 
 ### 5.2 Phone (authenticated, CSRF-protected)
 
-#### `POST /api/auth/login` / `POST /api/auth/logout` / `GET /api/me`
-Regular username + password login for the phone (and to show "who am I" anywhere).
+#### Password login (implemented in slice 2)
+
+| Endpoint | Auth | Result |
+|---|---|---|
+| `GET /api/auth/csrf` | none | `204`; (re)issues the `XSRF-TOKEN` cookie. The SPA calls it before a POST when the cookie is missing |
+| `POST /api/auth/login` `{username, password}` | CSRF | `200 {id, username, displayName}` + new `SESSION` cookie; `401` problem+json on bad credentials; `400` on blank fields |
+| `GET /api/me` | session | `200 {id, username, displayName}`; `401` when not logged in |
+| `POST /api/auth/logout` | session + CSRF | `204`; session deleted from Redis, `XSRF-TOKEN` cleared |
+
+How the pieces fit:
+- **CSRF (double-submit cookie):** Spring sets a JS-readable `XSRF-TOKEN` cookie; the SPA copies
+  it into the `X-XSRF-TOKEN` header on every non-GET (`infrastructure/http/httpClient.ts`). A
+  foreign site can make the browser *send* our cookies but can't *read* them, so it can't forge
+  the header. `csrf.spa()` in `SecurityConfig` sets this up.
+- **At login** (`WebSessionAuthenticator`, reused later by the QR exchange): new session id
+  (defeats session fixation) → rotate CSRF token → save the SecurityContext in the HTTP
+  session → Spring Session writes it to Redis under `advancedlogin:session:*`.
+- **Timing-safe login:** an unknown username still runs one BCrypt comparison, so response time
+  doesn't reveal which usernames exist (`AuthenticateUserService`).
+- Test accounts are seeded from `app.seed-users` in `application.yml` (no sign-up flow).
 
 #### `POST /api/qr/sessions/{qrId}/scan`
 - PENDING → SCANNED, locks to current user, TTL reset to 60s (time to decide).
@@ -350,8 +369,8 @@ those live behind ports, which `app/DependenciesProvider` fills with real implem
 
 ## 10. Build order (milestones)
 
-1. **Skeleton** — docker-compose Redis, Spring Boot app, Vite app, proxy, `/api/health`.
-2. **Normal login** — users, `/api/auth/login`, Spring Session in Redis, CSRF, `/m/login`, `/api/me`.
+1. **Skeleton** (done) — docker-compose Redis, Spring Boot app, Vite app, proxy, `/api/health`.
+2. **Normal login** (done) — users, `/api/auth/login`, Spring Session in Redis, CSRF, `/m/login`, `/api/me`.
 3. **QR create + render** — `POST /api/qr/sessions`, binding cookie, QR on `/login`.
 4. **Status via polling** — `GET /api/qr/sessions/{id}`, scan/approve/reject + Lua CAS.
    End-to-end works with a hard-coded qrId pasted on the phone.
