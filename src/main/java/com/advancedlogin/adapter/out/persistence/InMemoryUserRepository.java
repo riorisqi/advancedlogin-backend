@@ -10,10 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Users live in memory for now (seeded at startup by {@code config.DevUserSeeder}). Swapping in
- * Postgres later means writing another {@link UserRepository} adapter; no use case changes.
- */
+/** Seeded at startup by {@code config.DevUserSeeder}. */
 @Component
 public class InMemoryUserRepository implements UserRepository {
 

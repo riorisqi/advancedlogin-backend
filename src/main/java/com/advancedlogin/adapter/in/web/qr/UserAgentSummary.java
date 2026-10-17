@@ -4,11 +4,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Turns a raw User-Agent into "Chrome 152" / "Windows" for the phone's approval screen.
- * Deliberately tiny: good enough for a human to sanity-check "is this my computer?". (A real
- * product would use a maintained parser; UA strings are messy and partly frozen by browsers.)
- *
- * <p>Order matters: Edge and Opera also say "Chrome", Chrome also says "Safari".
+ * "Chrome 152" / "Windows" for the approval screen; deliberately tiny, not a full UA parser.
+ * Order matters: Edge and Opera also say "Chrome", and Chrome also says "Safari".
  */
 record UserAgentSummary(String browser, String os) {
 

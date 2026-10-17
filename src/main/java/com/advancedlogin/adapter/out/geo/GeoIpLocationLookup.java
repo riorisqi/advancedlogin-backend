@@ -18,16 +18,8 @@ import java.util.StringJoiner;
 import java.util.regex.Pattern;
 
 /**
- * Offline IP geolocation with a MaxMind-format database ({@code .mmdb}): no request to a third
- * party per login, so the user's IP isn't shared with anyone.
- *
- * <ul>
- *   <li>Private/loopback addresses → "Local network" (always, no database needed). In dev that's
- *       what you'll see: your PC and phone are on the same Wi-Fi.</li>
- *   <li>Public addresses → "City, Country" if {@code app.geoip.database} points at an .mmdb file
- *       (free: MaxMind GeoLite2-City with an account, or DB-IP "IP to City Lite"); otherwise
- *       nothing, and the phone simply doesn't show a location row.</li>
- * </ul>
+ * Offline lookup in a MaxMind-format {@code .mmdb} (optional), so no IP is sent to a third party.
+ * Private/loopback addresses are always "Local network".
  */
 @Component
 class GeoIpLocationLookup implements IpLocationLookup {
@@ -36,7 +28,7 @@ class GeoIpLocationLookup implements IpLocationLookup {
 
     private static final Logger log = LoggerFactory.getLogger(GeoIpLocationLookup.class);
 
-    /** Only IP literals: InetAddress.getByName on anything else would trigger a DNS lookup. */
+    // Only IP literals: InetAddress.getByName on anything else would trigger a DNS lookup.
     private static final Pattern IP_LITERAL = Pattern.compile("[0-9A-Fa-f:.%]+");
 
     private final DatabaseReader reader;
@@ -79,8 +71,7 @@ class GeoIpLocationLookup implements IpLocationLookup {
                 || address.isAnyLocalAddress()) {
             return true;
         }
-        // IPv6 unique local addresses (fc00::/7) are the IPv6 version of 192.168.x.x;
-        // Java's isSiteLocalAddress only knows the deprecated fec0::/10.
+        // IPv6 unique local (fc00::/7); isSiteLocalAddress only knows the deprecated fec0::/10.
         return address instanceof Inet6Address && (address.getAddress()[0] & 0xFE) == 0xFC;
     }
 

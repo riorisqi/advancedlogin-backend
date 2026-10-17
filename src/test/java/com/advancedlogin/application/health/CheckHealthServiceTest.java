@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Plain unit test: no Spring context, no Redis. The outbound port is just a lambda. */
 class CheckHealthServiceTest {
 
     @Test

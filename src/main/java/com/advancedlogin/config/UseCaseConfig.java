@@ -25,10 +25,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 import java.time.Duration;
 
-/**
- * Composition root for use cases: the only place that knows both the application services
- * and Spring. Adapters are picked up by component scanning; use cases are registered here.
- */
+/** Use cases are plain classes (no Spring annotations), so they're registered here. */
 @Configuration
 class UseCaseConfig {
 
@@ -62,17 +59,13 @@ class UseCaseConfig {
         return new CreateQrSessionService(store, tokens, locations, clock, timeouts);
     }
 
-    /**
-     * One object implements the status/scan/approve/reject/exchange use cases; Spring injects it
-     * wherever any of those interfaces is asked for.
-     */
     @Bean
     QrSessionService qrSessionService(QrSessionStore store, QrStatusPublisher publisher, RandomTokenGenerator tokens,
                                       UserRepository users, Clock clock, QrTimeouts timeouts) {
         return new QrSessionService(store, publisher, tokens, users, clock, timeouts);
     }
 
-    /** Use cases ask a Clock for "now" instead of calling Instant.now(), so tests can fix time. */
+    // Use cases take a Clock instead of calling Instant.now(), so tests can fix time.
     @Bean
     Clock clock() {
         return Clock.systemUTC();

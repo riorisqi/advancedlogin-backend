@@ -8,11 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 
-/**
- * Inbound adapter: a message arriving from Redis is an event from the outside world, just like
- * an HTTP request. Every backend instance runs one of these (subscribed to {@code qr:events:*},
- * see config/RedisMessagingConfig) and forwards updates to the SSE streams it holds.
- */
+/** Forwards Pub/Sub updates (published by any instance) to the SSE streams held by this one. */
 @Component
 public class RedisQrEventSubscriber implements MessageListener {
 

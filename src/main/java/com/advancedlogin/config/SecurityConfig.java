@@ -29,25 +29,19 @@ class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/error").permitAll()
-                        // The desktop asking for a QR is, by definition, not logged in yet.
                         .requestMatchers(HttpMethod.POST, "/api/qr/sessions", "/api/qr/sessions/*/exchange").permitAll()
-                        // Desktop status (snapshot + SSE stream): guarded by the qr_bind cookie instead.
+                        // Guarded by the qr_bind cookie instead.
                         .requestMatchers(HttpMethod.GET, "/api/qr/sessions/*", "/api/qr/sessions/*/events").permitAll()
                         .anyRequest().authenticated())
 
-                // Session cookie auth => CSRF protection is mandatory. spa(): token in a JS-readable
-                // XSRF-TOKEN cookie, sent back by the SPA as the X-XSRF-TOKEN header.
+                // Cookie sessions need CSRF protection; spa(): XSRF-TOKEN cookie echoed as X-XSRF-TOKEN.
                 .csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository))
 
-                // Load/save the SecurityContext from the HTTP session (stored in Redis by Spring Session).
                 .securityContext(context -> context.securityContextRepository(securityContextRepository))
 
-                // An API answers 401, it doesn't redirect to an HTML login page.
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 
-                // POST /api/auth/logout (CSRF-protected): invalidates the session, clears the
-                // XSRF-TOKEN cookie, answers 204.
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)));
@@ -66,7 +60,6 @@ class SecurityConfig {
         return CookieCsrfTokenRepository.withHttpOnlyFalse();
     }
 
-    /** What happens to the session at the moment of login. See WebSessionAuthenticator. */
     @Bean
     SessionAuthenticationStrategy sessionAuthenticationStrategy(CsrfTokenRepository csrfTokenRepository) {
         return new CompositeSessionAuthenticationStrategy(List.of(

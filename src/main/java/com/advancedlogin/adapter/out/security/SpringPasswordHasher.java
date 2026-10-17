@@ -5,10 +5,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-/**
- * Delegating encoder: hashes are stored as "{bcrypt}$2a$10$...". The "{id}" prefix lets us move
- * to a stronger algorithm later while old hashes keep verifying.
- */
+/** Hashes look like "{bcrypt}$2a$...": the {id} prefix allows switching algorithms later. */
 @Component
 class SpringPasswordHasher implements PasswordHasher {
 

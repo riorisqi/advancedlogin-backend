@@ -20,10 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Password login for the phone (and anyone else). Logout is handled by Spring Security's
- * LogoutFilter at POST /api/auth/logout (see SecurityConfig).
- */
+/** Password login. Logout is Spring Security's LogoutFilter at POST /api/auth/logout (see SecurityConfig). */
 @RestController
 class AuthController {
 
@@ -38,10 +35,7 @@ class AuthController {
         this.sessionAuthenticator = sessionAuthenticator;
     }
 
-    /**
-     * The SPA calls this before its first POST. Touching the (lazily created) CsrfToken makes
-     * Spring write the XSRF-TOKEN cookie, which the frontend echoes back as X-XSRF-TOKEN.
-     */
+    /** Touching the lazily created CsrfToken makes Spring write the XSRF-TOKEN cookie for the SPA. */
     @GetMapping("/api/auth/csrf")
     ResponseEntity<Void> csrf(CsrfToken csrfToken) {
         csrfToken.getToken();

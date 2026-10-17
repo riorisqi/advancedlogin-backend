@@ -69,7 +69,7 @@ class AuthenticateUserServiceTest {
         assertThat(limitedSubjects).containsExactly("login-user:alice");
     }
 
-    /** Fake hasher: "hash" is just a prefix, and it records what it was asked to compare. */
+    /** "Hash" is just a prefix; records what it was asked to compare. */
     private static final class RecordingHasher implements PasswordHasher {
         final List<String> checkedHashes = new ArrayList<>();
 

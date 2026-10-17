@@ -1,9 +1,6 @@
 package com.advancedlogin.application.qr;
 
-/**
- * Unknown, expired, or (for the desktop) not bound to this browser. Deliberately one exception
- * for all three, so a response never reveals which. Maps to HTTP 404.
- */
+/** Unknown, expired or not bound to this browser: one exception, so a response never reveals which. */
 public class QrSessionNotFoundException extends RuntimeException {
 
     public QrSessionNotFoundException() {

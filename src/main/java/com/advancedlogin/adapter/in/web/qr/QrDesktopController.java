@@ -8,8 +8,8 @@ import com.advancedlogin.application.qr.port.in.GetQrSessionStatusUseCase;
 import com.advancedlogin.domain.qr.QrSession;
 import com.advancedlogin.domain.qr.QrSessionId;
 import com.advancedlogin.domain.qr.QrStatusUpdate;
-import com.advancedlogin.domain.user.User;
 import com.advancedlogin.domain.qr.RequestingDevice;
+import com.advancedlogin.domain.user.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -37,10 +37,7 @@ class QrDesktopController {
 
     static final String BIND_COOKIE = "qr_bind";
 
-    /**
-     * Longer than any QR session can live (90s pending + 60s scanned + 30s confirmed), so the
-     * cookie never disappears before the session does. Redis decides real expiry, not the cookie.
-     */
+    // Outlives any session (90+60+30s); the Redis TTL decides real expiry, not the cookie.
     private static final Duration BIND_COOKIE_MAX_AGE = Duration.ofMinutes(5);
 
     private final CreateQrSessionUseCase createQrSession;
@@ -73,9 +70,7 @@ class QrDesktopController {
         CreatedQrSession created = createQrSession.create(device);
         QrSession session = created.session();
 
-        // Binds this QR to this browser. HttpOnly: page JS can't read it. Path=/api/qr: only sent
-        // to QR endpoints. SameSite=Strict: never sent on requests started by another site.
-        // A new QR replaces the cookie, so only the newest QR in this browser can complete.
+        // Binds the QR to this browser: HttpOnly (no JS access), only sent to /api/qr, never cross-site.
         ResponseCookie bindCookie = ResponseCookie.from(BIND_COOKIE, created.bindingSecret())
                 .httpOnly(true)
                 .secure(secureCookies)
@@ -91,11 +86,7 @@ class QrDesktopController {
                         session.expiresAt()));
     }
 
-    /**
-     * Status snapshot for polling. Requires this browser's qr_bind cookie: knowing the qrId
-     * (it's on screen!) isn't enough. Missing cookie, wrong cookie, unknown or expired id all
-     * give the same 404, which the desktop treats as "expired".
-     */
+    /** Needs this browser's qr_bind cookie: the qrId alone is visible on screen. Any failure is the same 404. */
     @GetMapping("/api/qr/sessions/{qrId}")
     QrStatusResponse status(@PathVariable String qrId,
                             @CookieValue(name = BIND_COOKIE, required = false) String bindingSecret) {
@@ -103,11 +94,7 @@ class QrDesktopController {
         return new QrStatusResponse(session.status().name(), session.expiresAt(), session.exchangeCode());
     }
 
-    /**
-     * Last step of QR login: trade the one-time code (+ this browser's qr_bind cookie) for a real
-     * SESSION cookie. From here on, the desktop is logged in exactly as if it had used a password:
-     * same session handling (new session id, fresh CSRF token), same /api/me.
-     */
+    /** Trades the one-time code (plus qr_bind) for a real session, exactly like a password login. */
     @PostMapping("/api/qr/sessions/{qrId}/exchange")
     ResponseEntity<SignedInUserResponse> exchange(@PathVariable String qrId,
                                                   @CookieValue(name = BIND_COOKIE, required = false) String bindingSecret,
@@ -116,7 +103,6 @@ class QrDesktopController {
         User user = exchangeQrCode.exchange(QrIds.parse(qrId), bindingSecret, body.code());
         sessionAuthenticator.logIn(user, request, response);
 
-        // The binding has done its job: delete the cookie.
         ResponseCookie clearBind = ResponseCookie.from(BIND_COOKIE, "")
                 .httpOnly(true).secure(secureCookies).sameSite("Strict").path("/api/qr").maxAge(0).build();
         return ResponseEntity.ok()
@@ -130,11 +116,6 @@ class QrDesktopController {
     record SignedInUserResponse(String id, String username, String displayName) {
     }
 
-    /**
-     * Live status stream (Server-Sent Events): {@code event: status} with the same JSON as above,
-     * plus {@code serverTime}. Same qr_bind check as the snapshot endpoint; a bad cookie gets a
-     * plain 404 before any stream is opened, and EventSource gives up on non-200 responses.
-     */
     @GetMapping(path = "/api/qr/sessions/{qrId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     SseEmitter events(@PathVariable String qrId,
                       @CookieValue(name = BIND_COOKIE, required = false) String bindingSecret) {
@@ -142,30 +123,23 @@ class QrDesktopController {
         // Check the binding first, so strangers never get a stream registered.
         getQrSessionStatus.getStatus(id, bindingSecret);
 
-        // Order matters: register the stream, THEN read the snapshot. If an update lands in
-        // between, we send it twice (harmless: snapshots are idempotent). The other order could
-        // miss it forever.
+        // Register first, then read the snapshot: an update landing in between is sent twice
+        // (harmless), whereas the other order could lose it.
         SseEmitter emitter = streams.open(id);
         try {
             QrSession snapshot = getQrSessionStatus.getStatus(id, bindingSecret);
             streams.send(emitter, QrStatusUpdate.of(snapshot));
         } catch (RuntimeException e) {
-            emitter.complete(); // expired in the meantime; the client will see the stream end
+            emitter.complete(); // expired in the meantime
         }
         return emitter;
     }
 
-    /**
-     * Deliberately minimal: the desktop learns nothing about *who* scanned until login completes.
-     * {@code exchangeCode} is present only while CONFIRMED (and only for the bound browser).
-     */
+    /** Says nothing about who scanned. exchangeCode is only set while CONFIRMED. */
     record QrStatusResponse(String status, Instant expiresAt, String exchangeCode) {
     }
 
-    /**
-     * @param qrContent what the QR encodes: an https URL, so even the phone's built-in camera app
-     *                  opens our approve page; our own scanner just extracts the id from it.
-     */
+    /** qrContent is a URL, so the phone's own camera app can open it too. */
     record CreateQrSessionResponse(String qrId, String qrContent, Instant expiresAt) {
     }
 }

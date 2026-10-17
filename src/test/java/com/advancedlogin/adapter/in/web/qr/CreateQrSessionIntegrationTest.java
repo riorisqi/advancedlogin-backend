@@ -37,20 +37,18 @@ class CreateQrSessionIntegrationTest extends RedisIntegrationTest {
         assertThat(res.body()).contains("\"qrContent\":\"http://localhost:5173/m/approve/" + qrId + "\"");
         assertThat(res.headers().firstValue("Location")).hasValue("/api/qr/sessions/" + qrId);
 
-        // Binding cookie: HttpOnly, SameSite=Strict, only sent to /api/qr.
         String setCookie = res.headers().allValues("Set-Cookie").stream()
                 .filter(c -> c.startsWith("qr_bind=")).findFirst().orElseThrow();
         assertThat(setCookie).contains("HttpOnly", "SameSite=Strict", "Path=/api/qr");
         String bindingSecret = desktop.cookie("qr_bind").orElseThrow();
 
-        // Stored in Redis as PENDING, with only the *hash* of the secret, and a TTL.
         Map<Object, Object> stored = redis.opsForHash().entries("qr:s:" + qrId);
         assertThat(stored).containsEntry("status", "PENDING");
         assertThat(stored.get("bindHash")).isEqualTo(BindingHash.of(bindingSecret).value()).isNotEqualTo(bindingSecret);
         assertThat(stored.get("bindHash").toString()).doesNotContain(bindingSecret);
         assertThat(redis.getExpire("qr:s:" + qrId, TimeUnit.SECONDS)).isBetween(1L, 90L);
 
-        // The secret is never in the response body: page JS can't get hold of it.
+        // Page JS must never see the secret.
         assertThat(res.body()).doesNotContain(bindingSecret);
     }
 
@@ -66,14 +64,14 @@ class CreateQrSessionIntegrationTest extends RedisIntegrationTest {
 
     @Test
     void realClientIpAndOriginComeThroughTheDevProxy() {
-        // What the Vite dev proxy adds (xfwd: true) when a desktop on the LAN creates a QR.
+        // What the Vite dev proxy adds for a desktop on the LAN.
         HttpResponse<String> res = new TestBrowser(port).post("/api/qr/sessions", "", Map.of(
                 "X-Forwarded-For", "192.168.1.23",
                 "Origin", "https://192.168.1.5:5173"));
 
         String qrId = qrId(res);
         assertThat(res.body()).contains("\"qrContent\":\"https://192.168.1.5:5173/m/approve/" + qrId + "\"");
-        // Trusted because the request came from 127.0.0.1, an "internal proxy" for Tomcat's RemoteIpValve.
+        // Trusted: the request came from 127.0.0.1, an internal proxy for RemoteIpValve.
         assertThat(redis.opsForHash().get("qr:s:" + qrId, "ip")).isEqualTo("192.168.1.23");
     }
 

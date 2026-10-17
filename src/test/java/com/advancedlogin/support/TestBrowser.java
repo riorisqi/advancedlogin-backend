@@ -10,10 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Optional;
 
-/**
- * A minimal "browser" for integration tests: keeps a cookie jar and, like the SPA's httpClient,
- * copies the XSRF-TOKEN cookie into the X-XSRF-TOKEN header on POSTs.
- */
+/** A minimal browser: a cookie jar, plus the XSRF-TOKEN → X-XSRF-TOKEN copying the SPA does on POSTs. */
 public final class TestBrowser {
 
     private final int port;
@@ -28,12 +25,10 @@ public final class TestBrowser {
         return send(HttpRequest.newBuilder(uri(path)).GET());
     }
 
-    /** POST with the CSRF header, fetching a token first if the cookie is missing (as the SPA does). */
     public HttpResponse<String> post(String path, String json) {
         return post(path, json, java.util.Map.of());
     }
 
-    /** Same, with extra request headers (e.g. what a proxy or the browser would add). */
     public HttpResponse<String> post(String path, String json, java.util.Map<String, String> headers) {
         if (cookie("XSRF-TOKEN").isEmpty()) {
             get("/api/auth/csrf");
@@ -43,7 +38,6 @@ public final class TestBrowser {
         return send(request);
     }
 
-    /** Logs this browser in with a seeded test account (see app.seed-users). */
     public TestBrowser logIn(String username, String password) {
         HttpResponse<String> res = post("/api/auth/login",
                 "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}");
@@ -57,10 +51,7 @@ public final class TestBrowser {
         return send(jsonPost(path, json));
     }
 
-    /**
-     * Opens a Server-Sent Events stream like EventSource would, and collects the {@code data:}
-     * lines in a queue on a background thread. Returns once the response headers have arrived.
-     */
+    /** Returns once the response headers arrived; {@code data:} lines are collected in the background. */
     public SseStream openEventStream(String path) {
         HttpRequest request = HttpRequest.newBuilder(uri(path)).header("Accept", "text/event-stream").GET().build();
         HttpResponse<java.util.stream.Stream<String>> response;
@@ -75,10 +66,8 @@ public final class TestBrowser {
         return new SseStream(response);
     }
 
-    /** Minimal SSE reader: we only care about {@code data:} lines, and whether the stream ended. */
     public static final class SseStream implements AutoCloseable {
 
-        /** Marker put in the queue when the server closes the stream. */
         public static final String END = "<end of stream>";
 
         private final HttpResponse<java.util.stream.Stream<String>> response;
@@ -100,7 +89,6 @@ public final class TestBrowser {
             return response.statusCode();
         }
 
-        /** Next data payload, or fails the test after 5 seconds. */
         public String next() {
             try {
                 String value = data.poll(5, java.util.concurrent.TimeUnit.SECONDS);

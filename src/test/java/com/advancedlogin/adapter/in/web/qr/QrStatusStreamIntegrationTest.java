@@ -15,7 +15,6 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The desktop's live status stream: SSE over HTTP, fed by Redis Pub/Sub. */
 class QrStatusStreamIntegrationTest extends RedisIntegrationTest {
 
     private static final Pattern QR_ID = Pattern.compile("\"qrId\":\"([A-Za-z0-9_-]{43})\"");
@@ -69,7 +68,7 @@ class QrStatusStreamIntegrationTest extends RedisIntegrationTest {
     void lateJoinerGetsCurrentStateImmediately() {
         alicePhone.post(qrPath("/scan"), "");
 
-        // e.g. EventSource reconnecting after a network blip: no history needed, just the snapshot.
+        // e.g. EventSource reconnecting after a blip: the snapshot is all it needs.
         try (SseStream stream = desktop.openEventStream(eventsPath())) {
             assertThat(stream.next()).contains("\"status\":\"SCANNED\"");
         }

@@ -8,19 +8,13 @@ import java.time.Instant;
 import java.util.Optional;
 
 /**
- * The wire contract of the Redis Pub/Sub channel {@code qr:events:{qrId}}, shared by the
- * publisher (outbound adapter) and the subscriber (inbound adapter) so the two can't drift.
- *
- * <p>Payload: {@code STATUS:expiresAtEpochMillis[:exchangeCode]}, e.g. {@code SCANNED:1792223319015}
- * or {@code CONFIRMED:1792223349015:Xy7...}. Tiny on purpose; the channel name already carries the
- * qrId. (The code is base64url, so it never contains ':'.) The code travelling through Redis is
- * fine: it's the same Redis that stores it, and SSE only forwards it to the bound browser.
+ * Wire format of the Pub/Sub channel {@code qr:events:{qrId}}, shared by publisher and subscriber.
+ * Payload: {@code STATUS:expiresAtEpochMillis[:exchangeCode]} (base64url codes never contain ':').
  */
 public final class QrEventChannel {
 
     public static final String PREFIX = "qr:events:";
 
-    /** One PSUBSCRIBE per backend instance covers every QR session. */
     public static final String PATTERN = PREFIX + "*";
 
     private QrEventChannel() {
@@ -35,7 +29,7 @@ public final class QrEventChannel {
         return update.exchangeCode() == null ? base : base + ":" + update.exchangeCode();
     }
 
-    /** Empty for anything malformed: a bad message is dropped, never allowed to crash the listener. */
+    /** Empty for malformed messages: drop them rather than crash the listener. */
     public static Optional<QrStatusUpdate> decode(String channel, String payload) {
         try {
             QrSessionId id = new QrSessionId(channel.substring(PREFIX.length()));

@@ -6,10 +6,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Smoke-test endpoint: proves the frontend -> Vite proxy -> Spring -> Redis chain works.
- * The controller only translates HTTP <-> use case; it holds no logic of its own.
- */
 @RestController
 @RequestMapping("/api/health")
 class HealthController {
@@ -25,7 +21,6 @@ class HealthController {
         return HealthResponse.from(checkHealth.check());
     }
 
-    /** JSON contract consumed by the frontend; kept separate from the domain model on purpose. */
     record HealthResponse(String status, String redis) {
 
         static HealthResponse from(SystemHealth health) {

@@ -17,11 +17,7 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
     private final PasswordHasher passwordHasher;
     private final CheckRateLimitUseCase rateLimits;
 
-    /**
-     * Hash of a throwaway value, checked when the username doesn't exist. Without it, "unknown
-     * user" would return in ~0 ms while "wrong password" takes ~100 ms (BCrypt), letting an
-     * attacker discover valid usernames by timing the response.
-     */
+    // Checked for unknown usernames too, so response time doesn't reveal which accounts exist.
     private final String dummyHash;
 
     public AuthenticateUserService(UserRepository users, PasswordHasher passwordHasher,
@@ -34,10 +30,8 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
 
     @Override
     public User authenticate(String username, String rawPassword) {
-        // Per *account*, on top of the per-IP limit in the HTTP filter: an attacker rotating
-        // through many IPs still only gets a few guesses per minute at one username. Counted for
-        // unknown usernames too, so the limit itself doesn't reveal which accounts exist.
-        // (Trade-off: someone can lock a known username out for a minute. Mild, and temporary.)
+        // Per account, on top of the per-IP filter: rotating IPs doesn't buy more guesses. Unknown
+        // usernames count too, so the limit doesn't reveal which accounts exist.
         RateLimitDecision decision = rateLimits.check("login-user", username.trim().toLowerCase(Locale.ROOT));
         if (!decision.allowed()) {
             throw new TooManyRequestsException(decision.retryAfter());

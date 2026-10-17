@@ -4,13 +4,9 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
- * How long a QR session may stay in each state. Every transition restarts the clock, so a user
- * who scans at second 89 still gets the full {@code scanned} window to decide.
+ * Lifetime of each state; every transition restarts the clock.
  *
- * @param pending   showing on the desktop, waiting for a scan
- * @param scanned   phone shows the details, waiting for approve/reject
- * @param confirmed approved, waiting for the desktop to exchange its one-time code
- * @param terminal  REJECTED (later CONSUMED) is kept this long so a polling desktop still sees it
+ * @param terminal how long REJECTED/CONSUMED stay visible to a polling desktop
  */
 public record QrTimeouts(Duration pending, Duration scanned, Duration confirmed, Duration terminal) {
 

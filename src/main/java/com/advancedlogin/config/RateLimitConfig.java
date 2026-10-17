@@ -16,7 +16,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Rate-limit rules from {@code app.rate-limit.*} and the filter that applies the per-IP ones. */
 @Configuration
 @EnableConfigurationProperties(RateLimitConfig.RateLimitProperties.class)
 class RateLimitConfig {
@@ -28,10 +27,7 @@ class RateLimitConfig {
         return new RateLimitService(limiter, rules, properties.enabled());
     }
 
-    /**
-     * Registered by hand (not as @Component) to control its position: just before Spring
-     * Security's filter chain, so rejected floods never reach session or CSRF handling.
-     */
+    // Registered by hand to run just before Spring Security: floods never reach session/CSRF work.
     @Bean
     FilterRegistrationBean<RateLimitFilter> rateLimitFilter(CheckRateLimitUseCase rateLimits) {
         FilterRegistrationBean<RateLimitFilter> registration = new FilterRegistrationBean<>(new RateLimitFilter(rateLimits));

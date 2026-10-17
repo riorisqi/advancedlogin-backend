@@ -7,11 +7,8 @@ import java.util.HexFormat;
 import java.util.Objects;
 
 /**
- * SHA-256 of the browser-binding secret. Only the hash is stored: someone who can read Redis
- * still can't forge the {@code qr_bind} cookie.
- *
- * <p>A fast hash (not BCrypt) is fine here: the secret is 256 random bits, so there's nothing
- * to brute-force, unlike a human-chosen password.
+ * SHA-256 of the binding secret; only the hash is stored. A fast hash is fine here (unlike for
+ * passwords): the secret is 256 random bits, nothing to brute-force.
  */
 public record BindingHash(String value) {
 
@@ -28,7 +25,7 @@ public record BindingHash(String value) {
         }
     }
 
-    /** Constant-time comparison: doesn't leak how many leading characters matched. */
+    // Constant time: doesn't leak how many leading characters matched.
     public boolean matches(String secret) {
         byte[] expected = value.getBytes(StandardCharsets.UTF_8);
         byte[] actual = of(secret).value().getBytes(StandardCharsets.UTF_8);

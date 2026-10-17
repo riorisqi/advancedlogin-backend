@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** Test fake with the same contract as the Redis store (synchronized = atomic CAS). No TTLs. */
+/** Same contract as the Redis store (synchronized = atomic CAS), without TTLs. */
 class InMemoryQrSessionStore implements QrSessionStore {
 
     private final Map<QrSessionId, QrSession> sessions = new HashMap<>();
@@ -36,7 +36,7 @@ class InMemoryQrSessionStore implements QrSessionStore {
         return true;
     }
 
-    /** Test hook: simulate another request changing the session behind the service's back. */
+    /** Simulates another request changing the session behind the service's back. */
     synchronized void overwrite(QrSession session) {
         sessions.put(session.id(), session);
     }

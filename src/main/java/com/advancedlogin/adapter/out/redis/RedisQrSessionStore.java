@@ -21,10 +21,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * QR sessions as Redis hashes: {@code qr:s:{qrId}} with fields status, bindHash, ip, userAgent,
- * createdAt, expiresAt, (once scanned) scannedBy, scannedAt, and exchangeCode (empty string
- * when none: HSET can't delete a field, so empty means absent). Times are epoch millis. Redis
- * deletes the key when the TTL runs out, which is how a session becomes EXPIRED.
+ * Hash {@code qr:s:{qrId}}, times in epoch millis. An empty field means absent (HSET can't delete
+ * one). The key's TTL is what expires a session.
  */
 @Component
 class RedisQrSessionStore implements QrSessionStore {
@@ -51,7 +49,7 @@ class RedisQrSessionStore implements QrSessionStore {
         args.addAll(toFields(session));
         Long created = redis.execute(CREATE, List.of(key(session.id())), args.toArray());
         if (created == null || created != 1L) {
-            // 256-bit random ids don't collide; if this ever fires, the token generator is broken.
+            // 256-bit random ids don't collide: if this fires, the token generator is broken.
             throw new IllegalStateException("QR session id already exists");
         }
     }
@@ -73,7 +71,7 @@ class RedisQrSessionStore implements QrSessionStore {
     }
 
     private long ttlMillis(QrSession session) {
-        // PEXPIRE with a relative TTL (not PEXPIREAT) so the Redis server's clock doesn't matter.
+        // Relative TTL (PEXPIRE, not PEXPIREAT), so the Redis server's clock doesn't matter.
         return Math.max(1, Duration.between(clock.instant(), session.expiresAt()).toMillis());
     }
 

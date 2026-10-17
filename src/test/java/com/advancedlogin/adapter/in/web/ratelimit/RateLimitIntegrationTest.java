@@ -51,7 +51,7 @@ class RateLimitIntegrationTest extends RedisIntegrationTest {
                 seconds -> assertThat(Integer.parseInt(seconds)).isBetween(1, 60));
         assertThat(limited.headers().firstValue("Content-Type")).hasValueSatisfying(
                 ct -> assertThat(ct).startsWith("application/problem+json"));
-        // A *different* client IP (e.g. another PC behind the dev proxy) has its own budget.
+        // Another client IP has its own budget.
         assertThat(new TestBrowser(port).post("/api/qr/sessions", "", Map.of("X-Forwarded-For", "192.168.1.77"))
                 .statusCode()).isEqualTo(201);
     }
@@ -63,13 +63,12 @@ class RateLimitIntegrationTest extends RedisIntegrationTest {
             assertThat(attacker.post("/api/auth/login", login("bob", "guess-" + i)).statusCode()).isEqualTo(401);
         }
 
-        // Fourth try within the minute is refused before the password is even checked.
+        // Refused before the password is even checked.
         HttpResponse<String> limited = new TestBrowser(port).post("/api/auth/login", login("bob", "bob-dev-pass"));
         assertThat(limited.statusCode()).isEqualTo(429);
         assertThat(limited.headers().firstValue("Retry-After")).isPresent();
         assertThat(limited.body()).contains("Too many attempts");
 
-        // Other accounts are unaffected.
         assertThat(new TestBrowser(port).post("/api/auth/login", login("alice", "alice-dev-pass")).statusCode())
                 .isEqualTo(200);
     }

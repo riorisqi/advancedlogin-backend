@@ -8,11 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-/**
- * Publishes to Redis instead of pushing to local SSE streams directly. The phone's approve
- * request may hit backend instance A while the desktop's stream is open on instance B; Pub/Sub
- * delivers the message to every instance, and each forwards it to its own streams.
- */
+/** Pub/Sub, not local streams: the desktop's stream may be open on another backend instance. */
 @Component
 class RedisQrStatusPublisher implements QrStatusPublisher {
 
@@ -29,8 +25,7 @@ class RedisQrStatusPublisher implements QrStatusPublisher {
         try {
             redis.convertAndSend(QrEventChannel.channel(update.id()), QrEventChannel.encode(update));
         } catch (RuntimeException e) {
-            // The transition is already stored; a lost notification only delays the desktop
-            // until its next reconnect/poll, so don't fail the phone's request over it.
+            // Already stored: a lost notification only delays the desktop until its next reconnect/poll.
             log.warn("Could not publish QR status update {}", update.status(), e);
         }
     }

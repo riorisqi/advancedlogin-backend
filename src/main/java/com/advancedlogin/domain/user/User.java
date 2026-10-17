@@ -2,10 +2,7 @@ package com.advancedlogin.domain.user;
 
 import java.util.Objects;
 
-/**
- * A registered user. {@code passwordHash} is an opaque, already-hashed string: the domain never
- * sees or stores a raw password, and doesn't care which algorithm produced the hash.
- */
+/** {@code passwordHash} is already hashed: the domain never sees a raw password. */
 public record User(UserId id, String username, String displayName, String passwordHash) {
 
     public User {

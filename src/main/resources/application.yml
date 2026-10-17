@@ -5,12 +5,10 @@ spring:
     redis:
       host: localhost
       port: 6379
-      # Fail fast when Redis is down instead of hanging a request for the 60s default
+      # fail fast instead of the 60s default
       timeout: 2s
       connect-timeout: 2s
   session:
-    # HTTP sessions live in Redis (Spring Session), so any backend instance can serve any
-    # request and a restart doesn't log everyone out.
     timeout: 30m
     data:
       redis:
@@ -18,49 +16,42 @@ spring:
 
 server:
   port: 8080
-  # Trust X-Forwarded-For/-Proto, but only from local/private proxies (Tomcat RemoteIpValve's
-  # default "internal proxies" list). In dev that's the Vite proxy, so request.getRemoteAddr()
-  # becomes the real browser IP, which the phone shows before approving.
+  # Trust X-Forwarded-For only from local/private proxies (e.g. the Vite dev proxy).
   forward-headers-strategy: native
   servlet:
     session:
       cookie:
         name: SESSION
-        http-only: true     # JS can't read it -> an XSS bug can't steal the session
-        same-site: lax      # not sent on cross-site POSTs (CSRF defence in depth)
-        secure: false       # dev runs on plain http; must be true behind HTTPS
+        http-only: true
+        same-site: lax
+        secure: false       # true behind HTTPS
 
 app:
-  # Optional offline IP geolocation (MaxMind .mmdb, e.g. GeoLite2-City or DB-IP City Lite).
-  # Without it, public IPs show no location; private/LAN IPs always show "Local network".
+  # Optional MaxMind-format .mmdb (GeoLite2-City, DB-IP City Lite) for public-IP locations.
   geoip:
     database: ${APP_GEOIP_DATABASE:}
 
-  # Fixed-window limits, counted in Redis (rl:*) so every backend instance shares them.
-  # The *-ip rules are per client IP (HTTP filter); login-user is per username (login use case).
+  # *-ip rules are per client IP; login-user is per username, from any IP.
   rate-limit:
     enabled: true
     rules:
-      qr-create:   { requests: 10, window: 1m }   # new QR codes per IP
-      qr-status:   { requests: 60, window: 1m }   # snapshot polls + SSE (re)connects per IP
-      qr-exchange: { requests: 10, window: 1m }   # code redemptions per IP
-      login-ip:    { requests: 20, window: 1m }   # password logins per IP
-      login-user:  { requests: 5,  window: 1m }   # password logins per username, from any IP
+      qr-create:   { requests: 10, window: 1m }
+      qr-status:   { requests: 60, window: 1m }   # polls + SSE (re)connects
+      qr-exchange: { requests: 10, window: 1m }
+      login-ip:    { requests: 20, window: 1m }
+      login-user:  { requests: 5,  window: 1m }
 
   qr:
-    # How long a QR session may sit in each state (each transition restarts the clock).
-    timeouts:
-      pending: 90s     # on screen, waiting for a scan
-      scanned: 60s     # phone shows details, waiting for approve/reject
-      confirmed: 30s   # approved, waiting for the desktop to exchange its code
-      terminal: 15s    # REJECTED kept briefly so the desktop can see it
-    # Base of the URL inside the QR (the phone must be able to open it). Empty = use the desktop
-    # browser's Origin, so opening the desktop at https://<LAN-IP>:5173 just works (see ApproveLinks).
-    # Production: set it explicitly, e.g. APP_QR_APPROVE_BASE_URL=https://login.example.com
+    timeouts:          # each transition restarts the clock
+      pending: 90s
+      scanned: 60s
+      confirmed: 30s
+      terminal: 15s    # how long REJECTED/CONSUMED stay visible
+    # Base of the URL inside the QR. Empty = the desktop's Origin (see ApproveLinks); set it in production.
     approve-base-url: ${APP_QR_APPROVE_BASE_URL:}
     secure-cookies: false   # true behind HTTPS
 
-  # Dev-only test accounts (no sign-up flow in this project). Passwords are hashed at startup.
+  # Dev-only test accounts, hashed at startup.
   seed-users:
     - username: alice
       display-name: Alice

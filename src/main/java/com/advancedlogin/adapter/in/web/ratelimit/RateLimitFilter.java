@@ -17,12 +17,8 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * Per-IP limits on the endpoints worth abusing. Runs before Spring Security (see
- * config/RateLimitConfig), so a flood is turned away before any session or CSRF work.
- *
- * <p>"IP" is {@code request.getRemoteAddr()}, which already went through Tomcat's RemoteIpValve:
- * behind the dev proxy it's the real browser address, and a client can't fake it with its own
- * X-Forwarded-For header unless it is itself a trusted (internal) proxy.
+ * Per-IP limits, registered before Spring Security. The IP has already been through Tomcat's
+ * RemoteIpValve, so a client can't fake it with its own X-Forwarded-For.
  */
 public class RateLimitFilter extends OncePerRequestFilter {
 
@@ -58,7 +54,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    /** Same RFC 7807 shape as ApiExceptionHandler's errors, written by hand (we're outside Spring MVC here). */
+    /** Same problem+json shape as ApiExceptionHandler, written by hand: filters run outside Spring MVC. */
     static void writeTooManyRequests(HttpServletResponse response, RateLimitDecision decision) throws IOException {
         long seconds = Math.max(1, (long) Math.ceil(decision.retryAfter().toMillis() / 1000.0));
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());

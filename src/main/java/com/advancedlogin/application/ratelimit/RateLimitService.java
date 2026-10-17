@@ -5,17 +5,13 @@ import com.advancedlogin.application.ratelimit.port.out.RateLimiter;
 
 import java.util.Map;
 
-/** Named rules ("qr-create" → 10 per minute, ...) on top of the raw {@link RateLimiter}. */
 public class RateLimitService implements CheckRateLimitUseCase {
 
     private final RateLimiter limiter;
     private final Map<String, RateLimit> rules;
     private final boolean enabled;
 
-    /**
-     * @param enabled false turns every check into "allowed" (used by most integration tests, which
-     *                fire far more requests per minute than any human would)
-     */
+    /** @param enabled false allows everything (most integration tests) */
     public RateLimitService(RateLimiter limiter, Map<String, RateLimit> rules, boolean enabled) {
         this.limiter = limiter;
         this.rules = Map.copyOf(rules);

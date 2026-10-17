@@ -18,10 +18,7 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Three "browsers": the desktop that shows the QR, Alice's phone, and Bob's phone (another
- * logged-in user who also got hold of the QR).
- */
+/** Three browsers: the desktop, Alice's phone, and Bob's phone (another user who got hold of the QR). */
 class QrApprovalFlowIntegrationTest extends RedisIntegrationTest {
 
     private static final Pattern QR_ID = Pattern.compile("\"qrId\":\"([A-Za-z0-9_-]{43})\"");
@@ -62,7 +59,6 @@ class QrApprovalFlowIntegrationTest extends RedisIntegrationTest {
 
         assertThat(alicePhone.post(qrPath("/reject"), "").statusCode()).isEqualTo(204);
         assertThat(desktopStatus()).contains("\"status\":\"REJECTED\"");
-        // Terminal: no change of heart.
         assertThat(alicePhone.post(qrPath("/approve"), "").statusCode()).isEqualTo(409);
     }
 
@@ -77,7 +73,7 @@ class QrApprovalFlowIntegrationTest extends RedisIntegrationTest {
 
     @Test
     void knowingTheQrIdIsNotEnoughToWatchIt() {
-        // Someone photographed the screen: same qrId, but not the desktop's qr_bind cookie.
+        // Someone photographed the screen: same qrId, no qr_bind cookie.
         TestBrowser onlooker = new TestBrowser(port);
 
         assertThat(onlooker.get("/api/qr/sessions/" + qrId).statusCode()).isEqualTo(404);

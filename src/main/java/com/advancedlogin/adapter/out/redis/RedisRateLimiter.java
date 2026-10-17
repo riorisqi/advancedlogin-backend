@@ -36,8 +36,7 @@ class RedisRateLimiter implements RateLimiter {
             long ttlMillis = ((Number) result.get(1)).longValue();
             return new RateLimitDecision(count <= limit.maxRequests(), Duration.ofMillis(ttlMillis));
         } catch (RuntimeException e) {
-            // Fail open: if Redis hiccups, don't lock everyone out of logging in. (A bank might
-            // choose fail closed; without Redis our sessions don't work anyway.)
+            // Fail open: a Redis hiccup shouldn't lock everyone out (sessions need Redis anyway).
             log.warn("Rate limiter unavailable, allowing request", e);
             return RateLimitDecision.allow();
         }

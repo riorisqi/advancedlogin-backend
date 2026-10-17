@@ -60,15 +60,13 @@ class AuthFlowIntegrationTest extends RedisIntegrationTest {
         assertThat(login.body()).contains("\"username\":\"alice\"", "\"displayName\":\"Alice\"");
         assertThat(browser.cookie("SESSION")).isPresent();
 
-        // The session really lives in Redis, under our namespace.
         assertThat(redisTemplate.keys("advancedlogin:session:*")).isNotEmpty();
 
         HttpResponse<String> me = browser.get("/api/me");
         assertThat(me.statusCode()).isEqualTo(200);
         assertThat(me.body()).contains("\"username\":\"alice\"");
 
-        // Login rotated the CSRF token: the pre-login value is no longer the one in the jar.
-        // (post() fetches a fresh one if the cookie is gone, like the SPA.)
+        // Login rotated the CSRF token.
         assertThat(browser.cookie("XSRF-TOKEN")).isNotEqualTo(Optional.of(csrfBeforeLogin));
         assertThat(browser.post("/api/auth/logout", "").statusCode()).isEqualTo(204);
 

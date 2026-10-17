@@ -2,12 +2,7 @@ package com.advancedlogin.domain.qr;
 
 import java.util.Objects;
 
-/**
- * The desktop browser asking to be logged in. Shown on the phone before approval, so the user
- * can spot a QR that was relayed from somebody else's machine (QRLjacking defence).
- *
- * @param approximateLocation e.g. "Jakarta, Indonesia" or "Local network"; null if unknown
- */
+/** The desktop asking to log in; shown on the phone before approval (QRLjacking defence). */
 public record RequestingDevice(String ipAddress, String userAgent, String approximateLocation) {
 
     private static final int MAX_USER_AGENT_LENGTH = 512;
@@ -18,7 +13,6 @@ public record RequestingDevice(String ipAddress, String userAgent, String approx
         approximateLocation = approximateLocation == null || approximateLocation.isBlank() ? null : approximateLocation;
     }
 
-    /** As seen by the web layer, before the location is looked up. */
     public RequestingDevice(String ipAddress, String userAgent) {
         this(ipAddress, userAgent, null);
     }

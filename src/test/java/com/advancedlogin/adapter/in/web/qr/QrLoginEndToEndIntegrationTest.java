@@ -56,10 +56,9 @@ class QrLoginEndToEndIntegrationTest extends RedisIntegrationTest {
             assertThat(stream.next()).isEqualTo(SseStream.END);
         }
 
-        // A real session now, exactly like after a password login.
         assertThat(desktop.cookie("SESSION")).isPresent();
         assertThat(desktop.get("/api/me").body()).contains("\"username\":\"alice\"");
-        // The binding cookie is cleared, so the same browser can't redeem again either.
+        // qr_bind is cleared, so not even the same browser can redeem again.
         assertThat(desktop.cookie("qr_bind")).isEmpty();
         assertThat(desktop.post(path("/exchange"), "{\"code\":\"" + code + "\"}").statusCode()).isEqualTo(404);
     }
@@ -79,12 +78,11 @@ class QrLoginEndToEndIntegrationTest extends RedisIntegrationTest {
         approveByAlice();
         String code = match(CODE, desktop.get(path("")).body());
 
-        // An attacker who somehow saw the code (e.g. shoulder-surfed a log) but not the cookie.
+        // Saw the code (e.g. in a log) but doesn't have the cookie.
         TestBrowser attacker = new TestBrowser(port);
         assertThat(attacker.post(path("/exchange"), "{\"code\":\"" + code + "\"}").statusCode()).isEqualTo(404);
         assertThat(attacker.get("/api/me").statusCode()).isEqualTo(401);
 
-        // ...and the real desktop can still finish.
         assertThat(desktop.post(path("/exchange"), "{\"code\":\"" + code + "\"}").statusCode()).isEqualTo(200);
     }
 

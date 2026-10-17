@@ -8,15 +8,7 @@ import com.tngtech.archunit.lang.ArchRule;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 
-/**
- * Enforces the dependency rule: source code dependencies only point inwards.
- *
- * <pre>
- *   config  ──▶  adapter  ──▶  application  ──▶  domain
- * </pre>
- *
- * If someone imports a Redis class into a use case, the build fails here.
- */
+/** Dependencies only point inwards: config → adapter → application → domain. */
 @AnalyzeClasses(packages = "com.advancedlogin", importOptions = ImportOption.DoNotIncludeTests.class)
 class CleanArchitectureTest {
 

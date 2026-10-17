@@ -9,12 +9,7 @@ import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-/**
- * Pub/Sub wiring. The container holds one dedicated Redis connection in SUBSCRIBE mode (a
- * subscribed connection can't run normal commands) and dispatches messages to the listener.
- *
- * <p>{@code @EnableScheduling} drives the SSE heartbeat in QrStatusStreams.
- */
+/** Pub/Sub listener (its own Redis connection in SUBSCRIBE mode); scheduling drives the SSE heartbeat. */
 @Configuration
 @EnableScheduling
 class RedisMessagingConfig {

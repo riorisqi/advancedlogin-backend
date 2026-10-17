@@ -3,7 +3,6 @@ package com.advancedlogin.application.ratelimit;
 import java.time.Duration;
 import java.util.Objects;
 
-/** "At most {@code maxRequests} per {@code window}." */
 public record RateLimit(int maxRequests, Duration window) {
 
     public RateLimit {

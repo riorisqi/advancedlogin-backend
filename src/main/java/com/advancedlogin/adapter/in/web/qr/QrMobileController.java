@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 
-/**
- * Endpoints used by the logged-in phone. The phone never sends a password here: its own
- * SESSION cookie (plus CSRF token) is what vouches for the user.
- */
+/** Phone endpoints: the phone's own session (plus CSRF token) vouches for the user, never a password. */
 @RestController
 @RequestMapping("/api/qr/sessions/{qrId}")
 class QrMobileController {
@@ -34,7 +31,6 @@ class QrMobileController {
         this.rejectQrSession = rejectQrSession;
     }
 
-    /** Claims the QR for this user and returns what the phone must show before approval. */
     @PostMapping("/scan")
     LoginRequestResponse scan(@PathVariable String qrId, @AuthenticationPrincipal SessionUser user) {
         QrSession session = scanQrSession.scan(QrIds.parse(qrId), userId(user));
@@ -57,11 +53,7 @@ class QrMobileController {
         return new UserId(user.userId());
     }
 
-    /**
-     * QRLjacking defence: an attacker can relay *their* QR to a victim ("scan this to get a
-     * prize"). Showing where and when the login request came from gives the victim a chance to
-     * notice it isn't their computer.
-     */
+    /** Shown before approving, so a QR relayed from someone else's computer can be spotted (QRLjacking). */
     record LoginRequestResponse(String qrId, Instant requestedAt, String browser, String os, String ipAddress,
                                 String approximateLocation, Instant expiresAt) {
 

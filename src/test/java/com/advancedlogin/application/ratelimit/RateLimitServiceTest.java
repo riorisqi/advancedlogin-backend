@@ -18,7 +18,7 @@ class RateLimitServiceTest {
     private final List<String> keys = new ArrayList<>();
     private final Map<String, Integer> counts = new HashMap<>();
 
-    /** Fake limiter: counts per key forever (no windows needed to test the service). */
+    /** Counts per key forever: windows don't matter for the service. */
     private RateLimitDecision fakeHit(String key, RateLimit limit) {
         keys.add(key);
         int count = counts.merge(key, 1, Integer::sum);

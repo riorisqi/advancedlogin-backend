@@ -9,16 +9,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * One QR login attempt and its state machine (docs/ARCHITECTURE.md §3).
- *
- * <p>Immutable: each transition method validates the move and returns a <em>new</em> instance
- * with a fresh expiry. Persisting it safely (only if nobody else changed the session meanwhile)
- * is the store's compare-and-set job.
- *
- * @param scannedBy    the phone user who scanned it; null while PENDING. Once set, only this user
- *                     can approve or reject, and it's the user the desktop gets logged in as.
- * @param exchangeCode one-time code the desktop trades for a real session; present only while
- *                     CONFIRMED (short-lived, and useless without the binding cookie).
+ * One QR login attempt and its state machine (docs/ARCHITECTURE.md §3). Transitions return a new
+ * instance; the store persists it with compare-and-set.
  */
 public record QrSession(
         QrSessionId id,
@@ -67,10 +59,7 @@ public record QrSession(
         return !now.isBefore(expiresAt);
     }
 
-    /**
-     * PENDING → SCANNED, locked to {@code user}. Scanning again by the same user is a no-op
-     * (returns this), so a double tap or a page reload on the phone doesn't fail.
-     */
+    /** Same user scanning again is a no-op, so a double tap or reload on the phone doesn't fail. */
     public QrSession scan(UserId user, Instant now, QrTimeouts timeouts) {
         if (status == QrStatus.SCANNED && user.equals(scannedBy)) {
             return this;
@@ -79,23 +68,18 @@ public record QrSession(
         return with(QrStatus.SCANNED, now.plus(timeouts.scanned()), user, now, null);
     }
 
-    /** SCANNED → CONFIRMED, only by the user who scanned. Issues the one-time exchange code. */
     public QrSession approve(UserId user, String newExchangeCode, Instant now, QrTimeouts timeouts) {
         requireScannedBy(user, "approve");
         Objects.requireNonNull(newExchangeCode, "newExchangeCode");
         return with(QrStatus.CONFIRMED, now.plus(timeouts.confirmed()), scannedBy, scannedAt, newExchangeCode);
     }
 
-    /** SCANNED → REJECTED, only by the user who scanned. Kept briefly so the desktop can see it. */
     public QrSession reject(UserId user, Instant now, QrTimeouts timeouts) {
         requireScannedBy(user, "reject");
         return with(QrStatus.REJECTED, now.plus(timeouts.terminal()), scannedBy, scannedAt, null);
     }
 
-    /**
-     * CONFIRMED → CONSUMED: the desktop redeems the code (exactly once). The caller has already
-     * checked the binding cookie; this checks the code and that it hasn't been used yet.
-     */
+    /** The caller has already checked the binding cookie. */
     public QrSession consume(String presentedCode, Instant now, QrTimeouts timeouts) {
         requireStatus(QrStatus.CONFIRMED, "redeem");
         if (presentedCode == null || !constantTimeEquals(exchangeCode, presentedCode)) {

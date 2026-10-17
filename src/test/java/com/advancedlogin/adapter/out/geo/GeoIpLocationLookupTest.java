@@ -6,7 +6,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Without a database: only the "is this a local address?" part. */
 class GeoIpLocationLookupTest {
 
     private final GeoIpLocationLookup lookup = new GeoIpLocationLookup("");
@@ -25,7 +24,7 @@ class GeoIpLocationLookupTest {
 
     @Test
     void neverResolvesHostnames() {
-        // Must not trigger a DNS lookup (slow, and leaks which names we look up).
+        // Must not trigger a DNS lookup.
         assertThat(lookup.approximateLocation("example.com")).isEmpty();
         assertThat(lookup.approximateLocation(null)).isEmpty();
     }

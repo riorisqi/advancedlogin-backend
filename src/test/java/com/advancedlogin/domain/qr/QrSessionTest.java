@@ -9,7 +9,6 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** The state machine, tested as plain Java: no Spring, no Redis, runs in milliseconds. */
 class QrSessionTest {
 
     static final QrTimeouts TIMEOUTS = new QrTimeouts(

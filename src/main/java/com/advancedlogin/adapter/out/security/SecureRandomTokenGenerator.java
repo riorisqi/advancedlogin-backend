@@ -6,10 +6,7 @@ import org.springframework.stereotype.Component;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * SecureRandom, not Random/UUID: java.util.Random is predictable from a few outputs, and a
- * UUID v4 has only 122 random bits and isn't specified to come from a CSPRNG.
- */
+/** SecureRandom: java.util.Random is predictable, and UUIDs aren't guaranteed to come from a CSPRNG. */
 @Component
 class SecureRandomTokenGenerator implements RandomTokenGenerator {
 

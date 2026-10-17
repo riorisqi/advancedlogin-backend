@@ -14,15 +14,9 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Component;
 
 /**
- * Turns "this user is verified" into "this browser is logged in". Used by password login now and
- * by the QR code exchange later, so both get identical session handling.
- *
- * <p>Spring's form login does these steps for us; with a JSON endpoint we do them explicitly:
- * <ol>
- *   <li>session strategy: new session id (prevents session fixation) + fresh CSRF token</li>
- *   <li>put the Authentication in the SecurityContext</li>
- *   <li>save the context into the HTTP session, which Spring Session stores in Redis</li>
- * </ol>
+ * Turns "this user is verified" into "this browser is logged in", for both password login and QR
+ * exchange. Form login would do this for us; a JSON endpoint has to: new session id (session
+ * fixation) + fresh CSRF token, then save the SecurityContext into the session.
  */
 @Component
 public class WebSessionAuthenticator {

@@ -7,10 +7,7 @@ public interface CreateQrSessionUseCase {
 
     CreatedQrSession create(RequestingDevice device);
 
-    /**
-     * @param bindingSecret the raw secret for the {@code qr_bind} cookie. Returned exactly once,
-     *                      here; only its hash is stored.
-     */
+    /** @param bindingSecret for the qr_bind cookie; returned only here, only its hash is stored */
     record CreatedQrSession(QrSession session, String bindingSecret) {
     }
 }

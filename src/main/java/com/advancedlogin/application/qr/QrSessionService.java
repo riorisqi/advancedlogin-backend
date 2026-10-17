@@ -21,12 +21,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.function.BiFunction;
 
-/** Everything that happens to a QR session after it's created: status reads and every transition. */
 public class QrSessionService
         implements GetQrSessionStatusUseCase, ScanQrSessionUseCase, ApproveQrSessionUseCase, RejectQrSessionUseCase,
         ExchangeQrCodeUseCase {
 
-    /** One retry is enough: after losing a race, re-reading shows the winner's state and the domain decides. */
+    // One retry: after losing a race, the re-read shows the winner's state and the domain decides.
     private static final int MAX_ATTEMPTS = 2;
 
     private final QrSessionStore store;
@@ -58,7 +57,6 @@ public class QrSessionService
 
     @Override
     public void approve(QrSessionId id, UserId user) {
-        // A fresh 256-bit code per approval; generated before the CAS, discarded if it loses.
         String exchangeCode = tokens.newToken();
         transition(id, (session, now) -> session.approve(user, exchangeCode, now, timeouts));
     }
@@ -70,28 +68,23 @@ public class QrSessionService
 
     @Override
     public User exchange(QrSessionId id, String bindingSecret, String exchangeCode) {
-        loadBound(id, bindingSecret); // wrong/missing cookie → same 404 as an unknown id
+        loadBound(id, bindingSecret);
         QrSession consumed = transition(id, (session, now) -> session.consume(exchangeCode, now, timeouts));
         UserId approver = consumed.scanner().orElseThrow();
         // The account could have been deleted between approve and exchange.
         return users.findById(approver).orElseThrow(QrSessionNotFoundException::new);
     }
 
-    /**
-     * Read → let the domain decide → compare-and-set. If another request changed the session
-     * between our read and our write, the CAS fails and we re-evaluate against the new state:
-     * e.g. the losing phone in a scan race now sees SCANNED-by-someone-else and gets a 409.
-     */
+    /** Read → let the domain decide → compare-and-set; on a lost race, re-evaluate against the new state. */
     private QrSession transition(QrSessionId id, BiFunction<QrSession, Instant, QrSession> change) {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             QrSession current = load(id);
             QrSession updated = change.apply(current, clock.instant());
             if (updated.equals(current)) {
-                return current; // idempotent no-op (same user scanning twice)
+                return current;
             }
             if (store.compareAndSet(current.status(), updated)) {
-                // Only after the write succeeded: listeners must never hear about a state that
-                // didn't actually get stored.
+                // Only after the write succeeded: never announce a state that wasn't stored.
                 publisher.publish(QrStatusUpdate.of(updated));
                 return updated;
             }
@@ -102,7 +95,6 @@ public class QrSessionService
     private QrSession loadBound(QrSessionId id, String bindingSecret) {
         QrSession session = load(id);
         if (bindingSecret == null || !session.bindingHash().matches(bindingSecret)) {
-            // Someone has the qrId (it's printed on screen) but not this browser's cookie.
             throw new QrSessionNotFoundException();
         }
         return session;
@@ -111,7 +103,6 @@ public class QrSessionService
     private QrSession load(QrSessionId id) {
         QrSession session = store.findById(id).orElseThrow(QrSessionNotFoundException::new);
         if (session.isExpiredAt(clock.instant())) {
-            // Redis TTLs are precise, but don't rely on it: an expired session is gone.
             throw new QrSessionNotFoundException();
         }
         return session;

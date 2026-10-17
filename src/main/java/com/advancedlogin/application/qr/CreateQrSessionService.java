@@ -31,12 +31,10 @@ public class CreateQrSessionService implements CreateQrSessionUseCase {
 
     @Override
     public CreatedQrSession create(RequestingDevice device) {
-        // Two independent random values: the id goes into the QR (visible to anyone looking at
-        // the screen), the secret goes only into this browser's HttpOnly cookie.
+        // The id goes into the QR (visible on screen); the secret only into this browser's HttpOnly cookie.
         QrSessionId id = new QrSessionId(tokens.newToken());
         String bindingSecret = tokens.newToken();
 
-        // Looked up once, here, and stored with the session: the phone shows it before approving.
         RequestingDevice located = device.withLocation(locations.approximateLocation(device.ipAddress()).orElse(null));
 
         QrSession session = QrSession.pending(id, BindingHash.of(bindingSecret), located, clock.instant(), timeouts);

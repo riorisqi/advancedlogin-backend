@@ -10,10 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
-/**
- * Loads the test accounts from {@code app.seed-users} (application.yml) into the in-memory user
- * store, hashing their passwords on the way in. There is no sign-up flow in this project.
- */
+/** Seeds the test accounts from {@code app.seed-users} (there's no sign-up flow). */
 @Configuration
 @EnableConfigurationProperties(DevUserSeeder.SeedUsersProperties.class)
 class DevUserSeeder {
