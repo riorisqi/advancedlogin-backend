@@ -76,8 +76,18 @@ $env:JAVA_HOME = "D:\Dev\java lib collection\jdk-21.0.12.1+1"   # your JDK 21 fo
 Wait for `Started AdvancedLoginApplication`. The **`dev` profile is required**: it creates the
 test accounts and supplies the dev Redis password.
 
-**From IntelliJ instead:** open `backend/`, run `AdvancedLoginApplication` with
-*Run → Edit Configurations → Active profiles: `dev`* and the project SDK set to JDK 21.
+**From IntelliJ instead:** open `backend/` and set the project SDK to JDK 21
+(*File → Project Structure → Project → SDK*). Then activate the `dev` profile. How depends on
+the edition:
+
+- **IntelliJ IDEA Community** (no Spring Boot run configuration): run `AdvancedLoginApplication`
+  once (green arrow next to `main`), then *Run → Edit Configurations…* → select it → in
+  **Environment variables** add `SPRING_PROFILES_ACTIVE=dev`. (Alternative: *Modify options →
+  Add VM options* → `-Dspring.profiles.active=dev`.)
+- **IntelliJ IDEA Ultimate:** the *Spring Boot* run configuration has an **Active profiles**
+  field: enter `dev`. (The Community steps above work in Ultimate too.)
+
+Any of these does the same as `-Dspring-boot.run.profiles=dev` on the Maven command line.
 
 ### Terminal 3: frontend
 
@@ -219,7 +229,7 @@ they don't touch your dev Redis.
 |---|---|---|
 | `/status` shows **Backend DOWN** (502) | backend not running, or still starting | start Terminal 2; wait for `Started …` |
 | **Redis DOWN** | Docker not running / container stopped | start Docker Desktop, `docker compose up -d` |
-| Backend log: `NOAUTH Authentication required` | backend started without the `dev` profile | add `-Dspring-boot.run.profiles=dev` (IntelliJ: *Active profiles: dev*), or set `REDIS_PASSWORD` |
+| Backend log: `NOAUTH Authentication required` | backend started without the `dev` profile | add `-Dspring-boot.run.profiles=dev`; in IntelliJ set env var `SPRING_PROFILES_ACTIVE=dev` (see §3); or set `REDIS_PASSWORD` |
 | "Invalid username or password" for alice | `dev` profile not active, so no test accounts | as above |
 | "Too many sign-in attempts. Try again in N seconds" | login rate limit (5 per username per minute) | wait, or clear counters (below) |
 | Backend won't start: `Unable to establish loopback connection` | Java NIO + Windows temp folder | add VM option `-Djdk.net.unixdomain.tmpdir=<any writable folder>` |

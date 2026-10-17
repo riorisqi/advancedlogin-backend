@@ -1,5 +1,5 @@
 # Local development only: activate with the "dev" profile
-# (./mvnw spring-boot:run -Dspring-boot.run.profiles=dev, or "Active profiles: dev" in the IDE).
+# (./mvnw spring-boot:run -Dspring-boot.run.profiles=dev, or env var SPRING_PROFILES_ACTIVE=dev).
 spring:
   data:
     redis:

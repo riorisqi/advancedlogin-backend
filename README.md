@@ -46,8 +46,9 @@ Then start the frontend (see its README) and open http://localhost:5173.
 
 There is no sign-up flow. Dev accounts are seeded at startup from `app.seed-users` in
 [`application-dev.yml`](src/main/resources/application-dev.yml) (passwords are BCrypt-hashed on load).
-They only exist with the **`dev` profile**, so they can never ship to production. In IntelliJ, set
-*Active profiles* to `dev` in the run configuration. Sign in with one on the phone side, then approve
+They only exist with the **`dev` profile**, so they can never ship to production. In IntelliJ, add the
+environment variable `SPRING_PROFILES_ACTIVE=dev` to the run configuration (Ultimate also has an
+*Active profiles* field); details in [RUNNING.md §3](docs/RUNNING.md#3-start-everything-3-terminals). Sign in with one on the phone side, then approve
 QR logins with it.
 
 ### Local Redis
