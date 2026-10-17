@@ -151,10 +151,26 @@ Things to try next:
 
 ### Steps
 
-1. **Same network.** Connect the phone to the same Wi-Fi as the PC. Guest networks often block
+1. **Same network.** The phone and the PC must be on the same router: phone on its Wi-Fi, PC on
+   the same Wi-Fi *or* a LAN cable to that router (both work). Guest Wi-Fi networks often block
    devices from seeing each other ("client isolation"), so use the main one.
 
-2. **Start the frontend in LAN mode** (instead of `bun dev`; Redis and the backend stay as in [§3](#3-start-everything-3-terminals)):
+2. **Let Windows accept connections from the phone** (once). Windows blocks incoming
+   connections on networks marked **Public**, and a LAN cable or new Wi-Fi is often Public by
+   default.
+   - Check: `Get-NetConnectionProfile` → `NetworkCategory` should be **Private** for your
+     home network. If it says Public: *Settings → Network & internet → Ethernet* (or *Wi-Fi*) →
+     your network → **Network profile type: Private**.
+   - Allow the dev server's port, in an **Administrator** PowerShell:
+
+     ```powershell
+     New-NetFirewallRule -DisplayName "AdvancedLogin dev (5173)" -Direction Inbound -Protocol TCP -LocalPort 5173 -Action Allow -Profile Private
+     ```
+
+     (Or accept the "allow bun on Private networks" prompt if Windows shows one.) Remove it later
+     with `Remove-NetFirewallRule -DisplayName "AdvancedLogin dev (5173)"`.
+
+3. **Start the frontend in LAN mode** (instead of `bun dev`; Redis and the backend stay as in [§3](#3-start-everything-3-terminals)):
 
    ```powershell
    cd frontend
@@ -169,27 +185,31 @@ Things to try next:
    ➜  Network: https://172.x.x.x:5173/       vEthernet (WSL ...)
    ```
 
-   Use the **192.168.x.x** one (your Wi-Fi/Ethernet adapter), not the WSL/Hyper-V one. Not sure?
-   Run `ipconfig` and take the IPv4 address of the adapter connected to your router.
+   Use the **192.168.x.x** one (the adapter connected to your router). **Never the `172.x.x.x`
+   vEthernet/WSL one**: that's a virtual network that only exists *inside* your PC, so the phone
+   can't reach it. Not sure? Run `ipconfig` and take the IPv4 address of the adapter connected
+   to your router.
 
-   **Windows Firewall** may ask whether to allow `bun`/`node` on networks: allow **Private
-   networks**. If you dismissed it, the phone will time out (see [§7](#7-troubleshooting)).
+   LAN mode has **no hot reload**: Bun crashes on WebSocket connections over HTTPS, so the
+   WebSocket Vite uses for live updates is switched off (see `vite.config.ts`). After a code
+   change, refresh the page. The browser console shows one harmless
+   `[vite] failed to connect to websocket` message. (Normal `bun dev` keeps hot reload.)
 
-3. **Desktop:** on the PC, open **`https://192.168.x.x:5173`**, the network address, *not*
+4. **Desktop:** on the PC, open **`https://192.168.x.x:5173`**, the network address, *not*
    localhost. The QR's link is built from the address the desktop uses, and the phone can't open
    "localhost". Accept the certificate warning (*Advanced → Continue/Proceed*). You see the QR.
 
-4. **Phone:** open **`https://192.168.x.x:5173/m`** in the phone's browser and accept the
+5. **Phone:** open **`https://192.168.x.x:5173/m`** in the phone's browser and accept the
    certificate warning once:
    - **Android (Chrome):** *Advanced → Proceed to 192.168.x.x (unsafe)*.
    - **iPhone (Safari):** *Show Details → visit this website → Visit Website*.
 
    Sign in as `alice` / `alice-dev-pass`.
 
-5. **Scan:** tap **Scan QR code**, allow camera access, and point the phone at the QR on your
+6. **Scan:** tap **Scan QR code**, allow camera access, and point the phone at the QR on your
    PC screen. Hold it 20–40 cm away and avoid glare. It opens the approve page automatically.
 
-6. **Check and approve:** the phone shows the desktop's browser, OS, **the PC's LAN IP**,
+7. **Check and approve:** the phone shows the desktop's browser, OS, **the PC's LAN IP**,
    *Location: Local network* and a timer. Tap **Approve**: the PC shows **Welcome, Alice**.
 
 You can also scan with the phone's **built-in camera app**: the QR contains a normal
@@ -234,7 +254,8 @@ they don't touch your dev Redis.
 | "Too many sign-in attempts. Try again in N seconds" | login rate limit (5 per username per minute) | wait, or clear counters (below) |
 | Backend won't start: `Unable to establish loopback connection` | Java NIO + Windows temp folder | add VM option `-Djdk.net.unixdomain.tmpdir=<any writable folder>` |
 | Port 8080 in use | another backend (e.g. IntelliJ) already running | stop it, or run a 2nd on `--server.port=8090` and start the frontend with `$env:BACKEND_URL="http://localhost:8090"; bun dev` |
-| Phone: page never loads | firewall, wrong IP, or guest Wi-Fi | allow bun/node on *Private* networks; use the 192.168.x.x address; same Wi-Fi |
+| Phone: page never loads / times out | network marked *Public*, no firewall rule, wrong IP, or guest Wi-Fi | set the network to *Private* and add the firewall rule ([§5](#5-test-with-a-real-phone-camera-scanner) step 2); use the 192.168.x.x address, never 172.x.x.x (WSL); same router |
+| `bun run dev:lan` crashes: `TypeError: undefined is not an object (evaluating 'socket')` | Bun bug with WebSockets over HTTPS (Vite's hot-reload socket) | fixed in `vite.config.ts` (LAN mode disables the WebSocket); pull the latest frontend |
 | Phone: "The camera only works over HTTPS" | opened `http://` | use `bun run dev:lan` and the `https://` address |
 | Phone: "Camera access was blocked" | permission denied earlier | browser site settings → Camera → Allow, then reload |
 | Phone: "That QR code points to http://localhost:5173" | desktop opened via localhost | open the desktop at the `https://192.168.x.x:5173` address too |
