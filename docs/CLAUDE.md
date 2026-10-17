@@ -56,6 +56,7 @@ Full architecture & API design: [ARCHITECTURE.md](ARCHITECTURE.md)
   [CLEAN_ARCHITECTURE.md](CLEAN_ARCHITECTURE.md).
 
 ## Running locally
+Full guide: [RUNNING.md](RUNNING.md).
 - Backend needs the `dev` profile (test accounts + dev Redis password): `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`.
 - Redis (docker compose) is bound to 127.0.0.1 and requires `REDIS_PASSWORD` (dev default `advancedlogin-dev`).
 

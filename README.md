@@ -9,6 +9,7 @@ The React app lives in the sibling repo [`advancedlogin-frontend`](https://githu
 
 | | |
 |---|---|
+| **How to run it and test it (incl. a real phone)** | [docs/RUNNING.md](docs/RUNNING.md) |
 | Design, API, state machine, Redis keys | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Project context & decisions | [docs/CLAUDE.md](docs/CLAUDE.md) |
 | Attacks and the tests that stop them | [ARCHITECTURE.md §11](docs/ARCHITECTURE.md#11-attack-yourself) |
@@ -36,6 +37,7 @@ docker compose up -d                                   # Redis + RedisInsight, l
 Check it: `curl http://localhost:8080/api/health` → `{"status":"UP","redis":"UP"}`.
 
 Then start the frontend (see its README) and open http://localhost:5173.
+**Full step-by-step guide, including testing with a real phone: [docs/RUNNING.md](docs/RUNNING.md).**
 
 > **JDK not on PATH?** Point `JAVA_HOME` at it first, e.g. in PowerShell:
 > `$env:JAVA_HOME="D:\path\to\jdk-21"`. The Maven wrapper downloads Maven itself.
@@ -45,39 +47,21 @@ Then start the frontend (see its README) and open http://localhost:5173.
 There is no sign-up flow. Dev accounts are seeded at startup from `app.seed-users` in
 [`application-dev.yml`](src/main/resources/application-dev.yml) (passwords are BCrypt-hashed on load).
 They only exist with the **`dev` profile**, so they can never ship to production. In IntelliJ, set
-*Active profiles* to `dev` in the run configuration.
+*Active profiles* to `dev` in the run configuration. Sign in with one on the phone side, then approve
+QR logins with it.
 
 ### Local Redis
 
 `docker-compose.yml` binds Redis (and RedisInsight) to `127.0.0.1` only and requires a password:
 `advancedlogin-dev` unless you set `REDIS_PASSWORD` (the backend's `dev` profile uses the same
 default). Outside the `dev` profile there is no default: set `REDIS_PASSWORD`.
-Use one on the phone side to sign in, then approve QR logins with it.
 
-### Trying a QR login locally
+### Trying a QR login
 
-You need two separate browser "identities": cookies are per browser profile.
-
-1. **Desktop:** open http://localhost:5173 in a normal window. It shows a QR code.
-2. **Phone:** open an **incognito/private** window (or another browser), go to
-   http://localhost:5173/m and sign in with a test account.
-3. Click **dev: open approve link** under the QR on the desktop, copy the URL into the phone
-   window, check the details, press **Approve**.
-4. The desktop switches to "Welcome, …". It's now signed in with its own session.
-
-### With a real phone (camera scanner)
-
-1. PC and phone on the **same Wi-Fi**. Backend running as usual.
-2. In `frontend/`: `bun run dev:lan`. It prints a `Network: https://192.168.x.x:5173/` address.
-   (Windows may ask to allow Node/bun through the firewall: allow it for private networks.)
-3. **Desktop:** open that `https://192.168.x.x:5173` address (not localhost: the QR link is built
-   from the address the desktop uses, and the phone can't reach "localhost").
-4. **Phone:** open the same address + `/m`. Accept the certificate warning once (the dev cert is
-   self-signed), sign in, tap **Scan QR code**, allow the camera, point it at the screen.
-5. Check the details on the phone (browser, OS, the PC's LAN IP), tap **Approve**. The desktop
-   signs in.
-
-Why HTTPS: browsers only allow camera access on secure origins (`https://` or `localhost`).
+- **On one PC** (normal window = desktop, incognito window = phone):
+  [RUNNING.md §4](docs/RUNNING.md#4-try-a-qr-login-on-one-pc-no-phone)
+- **With a real phone and its camera** (`bun run dev:lan`, HTTPS on your LAN):
+  [RUNNING.md §5](docs/RUNNING.md#5-test-with-a-real-phone-camera-scanner)
 
 ## Running tests
 
