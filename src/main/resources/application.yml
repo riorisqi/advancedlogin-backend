@@ -18,6 +18,10 @@ spring:
 
 server:
   port: 8080
+  # Trust X-Forwarded-For/-Proto, but only from local/private proxies (Tomcat RemoteIpValve's
+  # default "internal proxies" list). In dev that's the Vite proxy, so request.getRemoteAddr()
+  # becomes the real browser IP, which the phone shows before approving.
+  forward-headers-strategy: native
   servlet:
     session:
       cookie:
@@ -34,9 +38,10 @@ app:
       scanned: 60s     # phone shows details, waiting for approve/reject
       confirmed: 30s   # approved, waiting for the desktop to exchange its code
       terminal: 15s    # REJECTED kept briefly so the desktop can see it
-    # Where the phone opens the approve page. The phone must be able to reach this URL:
-    # localhost for now, the PC's LAN address over https in slice 7.
-    approve-base-url: http://localhost:5173
+    # Base of the URL inside the QR (the phone must be able to open it). Empty = use the desktop
+    # browser's Origin, so opening the desktop at https://<LAN-IP>:5173 just works (see ApproveLinks).
+    # Production: set it explicitly, e.g. APP_QR_APPROVE_BASE_URL=https://login.example.com
+    approve-base-url: ${APP_QR_APPROVE_BASE_URL:}
     secure-cookies: false   # true behind HTTPS
 
   # Dev-only test accounts (no sign-up flow in this project). Passwords are hashed at startup.

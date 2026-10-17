@@ -56,7 +56,7 @@ class QrDesktopController {
                         QrStatusStreams streams,
                         ExchangeQrCodeUseCase exchangeQrCode,
                         WebSessionAuthenticator sessionAuthenticator,
-                        @Value("${app.qr.approve-base-url}") String approveBaseUrl,
+                        @Value("${app.qr.approve-base-url:}") String approveBaseUrl,
                         @Value("${app.qr.secure-cookies:false}") boolean secureCookies) {
         this.createQrSession = createQrSession;
         this.getQrSessionStatus = getQrSessionStatus;
@@ -87,7 +87,8 @@ class QrDesktopController {
         String qrId = session.id().value();
         return ResponseEntity.created(URI.create("/api/qr/sessions/" + qrId))
                 .header(HttpHeaders.SET_COOKIE, bindCookie.toString())
-                .body(new CreateQrSessionResponse(qrId, approveBaseUrl + "/m/approve/" + qrId, session.expiresAt()));
+                .body(new CreateQrSessionResponse(qrId, ApproveLinks.forQr(qrId, approveBaseUrl, request.getHeader(HttpHeaders.ORIGIN)),
+                        session.expiresAt()));
     }
 
     /**

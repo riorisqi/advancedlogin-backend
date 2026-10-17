@@ -65,6 +65,19 @@ class CreateQrSessionIntegrationTest extends RedisIntegrationTest {
     }
 
     @Test
+    void realClientIpAndOriginComeThroughTheDevProxy() {
+        // What the Vite dev proxy adds (xfwd: true) when a desktop on the LAN creates a QR.
+        HttpResponse<String> res = new TestBrowser(port).post("/api/qr/sessions", "", Map.of(
+                "X-Forwarded-For", "192.168.1.23",
+                "Origin", "https://192.168.1.5:5173"));
+
+        String qrId = qrId(res);
+        assertThat(res.body()).contains("\"qrContent\":\"https://192.168.1.5:5173/m/approve/" + qrId + "\"");
+        // Trusted because the request came from 127.0.0.1, an "internal proxy" for Tomcat's RemoteIpValve.
+        assertThat(redis.opsForHash().get("qr:s:" + qrId, "ip")).isEqualTo("192.168.1.23");
+    }
+
+    @Test
     void creatingRequiresCsrfToken() {
         assertThat(new TestBrowser(port).postWithoutCsrf("/api/qr/sessions", "").statusCode()).isEqualTo(403);
     }

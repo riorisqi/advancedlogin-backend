@@ -30,10 +30,17 @@ public final class TestBrowser {
 
     /** POST with the CSRF header, fetching a token first if the cookie is missing (as the SPA does). */
     public HttpResponse<String> post(String path, String json) {
+        return post(path, json, java.util.Map.of());
+    }
+
+    /** Same, with extra request headers (e.g. what a proxy or the browser would add). */
+    public HttpResponse<String> post(String path, String json, java.util.Map<String, String> headers) {
         if (cookie("XSRF-TOKEN").isEmpty()) {
             get("/api/auth/csrf");
         }
-        return send(jsonPost(path, json).header("X-XSRF-TOKEN", cookie("XSRF-TOKEN").orElseThrow()));
+        HttpRequest.Builder request = jsonPost(path, json).header("X-XSRF-TOKEN", cookie("XSRF-TOKEN").orElseThrow());
+        headers.forEach(request::header);
+        return send(request);
     }
 
     /** Logs this browser in with a seeded test account (see app.seed-users). */

@@ -111,7 +111,10 @@ Conventions: JSON, errors as RFC 7807 `application/problem+json`
   (+ `Secure` when `app.qr.secure-cookies=true`). Redis stores only `SHA-256(secret)`.
   Max-Age outlives any session (90+60+30s); Redis TTL, not the cookie, decides expiry.
   A new QR overwrites the cookie, so only the newest QR in a browser can complete.
-- `qrContent` base URL comes from `app.qr.approve-base-url` (the phone must be able to reach it).
+- `qrContent` base URL: `app.qr.approve-base-url` if set, else the desktop request's `Origin`
+  (so a desktop opened at `https://<LAN-IP>:5173` produces a link the phone can open), else
+  `http://localhost:5173` (`ApproveLinks`). Trusting Origin here only shapes the link shown
+  back to the same browser for its own QR.
 - Stored atomically by `lua/qr_create.lua` (HSET + PEXPIRE in one script: no key without a TTL).
 - Frontend (`useQrLogin`): countdown from the *remaining lifetime* (`expiresAt` − server `Date`
   header) to survive clock skew; auto-refreshes an expired QR 3×, then shows "Reload QR code".
@@ -304,7 +307,7 @@ Routes (React Router):
 | `/` | desktop | signed out: create session → render QR (`qrcode.react`) → `EventSource` → react to status; auto-refresh QR on EXPIRED (max 3×, then "Click to reload") |
 | `/status` | any | backend + Redis health |
 | `/m/login` | phone | username/password form |
-| `/m/scan` | phone | camera scanner (`@zxing/browser` or `html5-qrcode`), extracts qrId → navigates to approve |
+| `/m/scan` | phone | camera scanner (`getUserMedia` + `BarcodeDetector` via the `barcode-detector` ponyfill / ZXing-wasm); accepts only our own approve link (`parseApproveLink`), then navigates to approve; "paste the link" fallback |
 | `/m/approve/:qrId` | phone | calls `scan`, shows device/IP/location/time, **Approve / Reject** buttons |
 
 Frontend learning topics this touches: custom hooks (`useQrSession` wrapping
@@ -320,9 +323,30 @@ type QrStatus =
   | { status: "EXPIRED" };
 ```
 
-> ⚠️ **Dev gotcha:** `getUserMedia` (camera) only works in a *secure context*. The phone
-> will hit your PC via LAN IP (`http://192.168.x.x`) which is **not** secure. Run Vite
-> with HTTPS (`@vitejs/plugin-basic-ssl` or `mkcert`) and `server.host: true`.
+### 8.1 Phone on the LAN (implemented in slice 7)
+
+`getUserMedia` (camera) only works in a *secure context*: `https://`, or `http://localhost`.
+A phone reaching your PC via `http://192.168.x.x` is **not** secure, so:
+
+- `bun run dev:lan` = `vite --mode lan`: `@vitejs/plugin-basic-ssl` (self-signed cert) +
+  `server.host: true`. The phone shows a certificate warning once; accept it. (`mkcert` with its
+  root CA installed on the phone avoids the warning; more setup.)
+- Open the **desktop** at the printed `https://<LAN-IP>:5173` address too, so the QR link (built
+  from the desktop's Origin) is reachable from the phone.
+- Vite proxy has `xfwd: true` and Spring `server.forward-headers-strategy: native`: Tomcat's
+  `RemoteIpValve` trusts `X-Forwarded-For` **only from internal proxies** (127/8, 10/8,
+  192.168/16, …), so the phone's approve screen shows the desktop's real LAN IP.
+
+**Scanner design** (frontend): port `QrCodeScanner` → adapter
+`infrastructure/camera/cameraQrCodeScanner.ts` (lazy-loads the decoder and serves the `.wasm` from
+our own build, not a CDN) → hook `useQrScanner` → `MobileScanPage`. Two rules worth noticing:
+
+1. **Never navigate to scanned text.** A camera decodes any QR (menus, Wi-Fi configs, phishing
+   links). `domain/qr/approveLink.ts` accepts only `<our origin>/m/approve/<43-char id>` and
+   extracts the id; everything else is reported as "not an AdvancedLogin QR code".
+   Unit-tested with `bun test`.
+2. **Release the camera.** Stop all tracks as soon as a code is found or the page unmounts (the
+   camera light must go off), and don't start it twice under StrictMode (`queueMicrotask`).
 
 ---
 
@@ -432,7 +456,7 @@ those live behind ports, which `app/DependenciesProvider` fills with real implem
    End-to-end works with a hard-coded qrId pasted on the phone.
 5. **SSE** (done) — replace polling with `EventSource` (polling kept as fallback); Redis pub/sub fan-out.
 6. **Exchange** (done) — one-time code → session cookie → desktop logged in.
-7. **Phone camera scanner** + HTTPS dev setup.
+7. **Phone camera scanner** (done) + HTTPS dev setup (`bun run dev:lan`).
 8. **Hardening** — rate limiting, device/IP display, GeoIP, QR auto-refresh, tests
    (Testcontainers Redis), attack-yourself exercises (copy QR to another browser,
    replay code, double-approve race).
