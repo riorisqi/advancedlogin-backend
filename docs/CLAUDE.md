@@ -41,7 +41,7 @@ Actors: Desktop browser (not logged in), Phone app (already logged in), Backend.
 - Rate limiting on QR session creation and status endpoints.
 
 ## Design
-Full architecture & API design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+Full architecture & API design: [ARCHITECTURE.md](ARCHITECTURE.md)
 (SSE for real-time, Spring Session + HttpOnly cookies, Redis Lua CAS for transitions).
 
 ## Repo layout
