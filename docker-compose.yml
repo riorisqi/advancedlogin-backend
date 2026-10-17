@@ -1,0 +1,18 @@
+# Local dev infrastructure. Start with: docker compose up -d
+services:
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    # No persistence: every QR session / HTTP session is short-lived anyway,
+    # and a clean Redis on restart makes experiments easier to reason about.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  # Web UI to inspect keys and TTLs while learning: http://localhost:5540
+  # (add a database with host "redis", port 6379)
+  redisinsight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis

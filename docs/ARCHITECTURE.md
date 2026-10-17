@@ -260,7 +260,7 @@ Two separate git repos side by side (no repo at the top level):
 ```
 AdvancedLogin/                    # plain folder, not a repo
 ├── CLAUDE.md                     # just imports backend/docs/CLAUDE.md
-├── backend/                      # git repo #1 — Spring Boot 3.x, Java 21, Maven
+├── backend/                      # git repo #1 — Spring Boot 4.1, Java 21, Maven
 │   ├── docs/                     # CLAUDE.md (project context), this design doc, images
 │   ├── docker-compose.yml        # redis (+ redis-insight for poking at keys)
 │   └── src/main/java/com/advancedlogin/
