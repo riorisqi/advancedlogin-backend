@@ -28,7 +28,12 @@ server:
 
 app:
   qr:
-    pending-ttl: 90s
+    # How long a QR session may sit in each state (each transition restarts the clock).
+    timeouts:
+      pending: 90s     # on screen, waiting for a scan
+      scanned: 60s     # phone shows details, waiting for approve/reject
+      confirmed: 30s   # approved, waiting for the desktop to exchange its code
+      terminal: 15s    # REJECTED kept briefly so the desktop can see it
     # Where the phone opens the approve page. The phone must be able to reach this URL:
     # localhost for now, the PC's LAN address over https in slice 7.
     approve-base-url: http://localhost:5173

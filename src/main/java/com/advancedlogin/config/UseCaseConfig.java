@@ -10,9 +10,11 @@ import com.advancedlogin.application.health.CheckHealthService;
 import com.advancedlogin.application.health.port.in.CheckHealthUseCase;
 import com.advancedlogin.application.health.port.out.DataStoreHealthPort;
 import com.advancedlogin.application.qr.CreateQrSessionService;
+import com.advancedlogin.application.qr.QrSessionService;
 import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase;
 import com.advancedlogin.application.qr.port.out.QrSessionStore;
 import com.advancedlogin.application.qr.port.out.RandomTokenGenerator;
+import com.advancedlogin.domain.qr.QrTimeouts;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,9 +45,26 @@ class UseCaseConfig {
     }
 
     @Bean
+    QrTimeouts qrTimeouts(@Value("${app.qr.timeouts.pending}") Duration pending,
+                          @Value("${app.qr.timeouts.scanned}") Duration scanned,
+                          @Value("${app.qr.timeouts.confirmed}") Duration confirmed,
+                          @Value("${app.qr.timeouts.terminal}") Duration terminal) {
+        return new QrTimeouts(pending, scanned, confirmed, terminal);
+    }
+
+    @Bean
     CreateQrSessionUseCase createQrSessionUseCase(QrSessionStore store, RandomTokenGenerator tokens, Clock clock,
-                                                  @Value("${app.qr.pending-ttl}") Duration pendingTtl) {
-        return new CreateQrSessionService(store, tokens, clock, pendingTtl);
+                                                  QrTimeouts timeouts) {
+        return new CreateQrSessionService(store, tokens, clock, timeouts);
+    }
+
+    /**
+     * One object implements the status/scan/approve/reject use cases; Spring injects it wherever
+     * any of those four interfaces is asked for.
+     */
+    @Bean
+    QrSessionService qrSessionService(QrSessionStore store, Clock clock, QrTimeouts timeouts) {
+        return new QrSessionService(store, clock, timeouts);
     }
 
     /** Use cases ask a Clock for "now" instead of calling Instant.now(), so tests can fix time. */

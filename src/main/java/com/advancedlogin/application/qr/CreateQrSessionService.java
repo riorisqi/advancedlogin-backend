@@ -6,23 +6,23 @@ import com.advancedlogin.application.qr.port.out.RandomTokenGenerator;
 import com.advancedlogin.domain.qr.BindingHash;
 import com.advancedlogin.domain.qr.QrSession;
 import com.advancedlogin.domain.qr.QrSessionId;
+import com.advancedlogin.domain.qr.QrTimeouts;
 import com.advancedlogin.domain.qr.RequestingDevice;
 
 import java.time.Clock;
-import java.time.Duration;
 
 public class CreateQrSessionService implements CreateQrSessionUseCase {
 
     private final QrSessionStore store;
     private final RandomTokenGenerator tokens;
     private final Clock clock;
-    private final Duration pendingTtl;
+    private final QrTimeouts timeouts;
 
-    public CreateQrSessionService(QrSessionStore store, RandomTokenGenerator tokens, Clock clock, Duration pendingTtl) {
+    public CreateQrSessionService(QrSessionStore store, RandomTokenGenerator tokens, Clock clock, QrTimeouts timeouts) {
         this.store = store;
         this.tokens = tokens;
         this.clock = clock;
-        this.pendingTtl = pendingTtl;
+        this.timeouts = timeouts;
     }
 
     @Override
@@ -32,7 +32,7 @@ public class CreateQrSessionService implements CreateQrSessionUseCase {
         QrSessionId id = new QrSessionId(tokens.newToken());
         String bindingSecret = tokens.newToken();
 
-        QrSession session = QrSession.pending(id, BindingHash.of(bindingSecret), device, clock.instant(), pendingTtl);
+        QrSession session = QrSession.pending(id, BindingHash.of(bindingSecret), device, clock.instant(), timeouts);
         store.create(session);
         return new CreatedQrSession(session, bindingSecret);
     }

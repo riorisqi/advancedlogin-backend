@@ -36,6 +36,16 @@ public final class TestBrowser {
         return send(jsonPost(path, json).header("X-XSRF-TOKEN", cookie("XSRF-TOKEN").orElseThrow()));
     }
 
+    /** Logs this browser in with a seeded test account (see app.seed-users). */
+    public TestBrowser logIn(String username, String password) {
+        HttpResponse<String> res = post("/api/auth/login",
+                "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}");
+        if (res.statusCode() != 200) {
+            throw new IllegalStateException("login failed: " + res.statusCode() + " " + res.body());
+        }
+        return this;
+    }
+
     public HttpResponse<String> postWithoutCsrf(String path, String json) {
         return send(jsonPost(path, json));
     }

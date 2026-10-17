@@ -140,8 +140,11 @@ Conventions: JSON, errors as RFC 7807 `application/problem+json`
   15s so proxies don't kill an idle connection.
 - Emitter timeout = remaining TTL; on timeout server sends `EXPIRED`.
 
-#### `GET /api/qr/sessions/{qrId}` — status snapshot (polling fallback)
-Same auth and same payload as one SSE event.
+#### `GET /api/qr/sessions/{qrId}` — status snapshot (implemented in slice 4)
+- Requires the `qr_bind` cookie. Response `200 {"status":"SCANNED","expiresAt":"…"}`.
+  Missing/wrong cookie, unknown or expired id → `404` (the desktop treats it as EXPIRED).
+- The desktop polls it every 2s (`useQrLogin`, `setTimeout` chain so polls never overlap).
+  Slice 5 replaces polling with SSE; this endpoint stays as the fallback.
 
 #### `POST /api/qr/sessions/{qrId}/exchange` — redeem the one-time code
 - Body `{"code":"Xy7…"}` + `qr_bind` cookie.
@@ -178,27 +181,30 @@ How the pieces fit:
   doesn't reveal which usernames exist (`AuthenticateUserService`).
 - Test accounts are seeded from `app.seed-users` in `application.yml` (no sign-up flow).
 
-#### `POST /api/qr/sessions/{qrId}/scan`
+#### `POST /api/qr/sessions/{qrId}/scan` (implemented in slice 4)
 - PENDING → SCANNED, locks to current user, TTL reset to 60s (time to decide).
+  Re-scan by the same user is idempotent (`200` again).
 - Response `200` — **QRLjacking defense**: show the user *what* they're about to log in:
   ```json
   {
     "qrId": "k3J9…",
     "requestedAt": "2026-10-17T12:00:00Z",
-    "device": { "browser": "Chrome 141", "os": "Windows 11" },
-    "ip": "203.0.113.7",
-    "approxLocation": "Jakarta, ID",
+    "browser": "Chrome 152",
+    "os": "Windows",
+    "ipAddress": "203.0.113.7",
     "expiresAt": "2026-10-17T12:01:00Z"
   }
   ```
-  (`approxLocation` from an offline GeoLite2 DB — optional, phase 2.)
-- Errors: `404/410` expired, `409` already scanned by someone else.
+  Browser/OS come from a small User-Agent summarizer (`UserAgentSummary`). An approximate
+  location (offline GeoLite2 DB) is planned for slice 8.
+- Errors: `404` expired/unknown, `409` already scanned by someone else.
 
-#### `POST /api/qr/sessions/{qrId}/approve` → `204`
-SCANNED → CONFIRMED, generates the one-time code, publishes event.
+#### `POST /api/qr/sessions/{qrId}/approve` → `204` (slice 4; code generation in slice 6)
+SCANNED → CONFIRMED (30s window), only by the user who scanned; anyone else → `409`.
+Slice 6 adds the one-time exchange code, slice 5 the push event.
 
-#### `POST /api/qr/sessions/{qrId}/reject` → `204`
-SCANNED → REJECTED, publishes event.
+#### `POST /api/qr/sessions/{qrId}/reject` → `204` (slice 4)
+SCANNED → REJECTED (kept 15s so the desktop can show it), only by the user who scanned.
 
 ### 5.3 Error / status code summary
 
@@ -224,9 +230,13 @@ SCANNED → REJECTED, publishes event.
 Notes:
 - **Random values:** `qrId`, bind secret, exchange code = 32 bytes from `SecureRandom`,
   base64url → 43 chars, 256 bits. Unguessable; no need for HMAC signing.
-- **Every transition = one Lua script** (`EVALSHA`): check current status (and owner /
-  bind hash / code), write new fields, set new TTL, return result. This gives us
-  atomic compare-and-set without `WATCH/MULTI` retry loops.
+- **Transitions = optimistic concurrency.** `QrSessionService` reads the session, the domain
+  (`QrSession.scan/approve/reject`) decides the new state, then `lua/qr_transition.lua` writes it
+  *only if* the status is still the one that was read (compare-and-set, new TTL in the same
+  step). If the CAS loses a race, the service re-reads once and lets the domain re-decide
+  (e.g. the slower of two scanning phones gets `409`). One generic script serves every
+  transition; ownership is safe because `scannedBy` is only ever set together with
+  PENDING → SCANNED, so "status is still SCANNED" implies "same scanner".
 - The code is stored in the hash in plaintext — acceptable because it lives ≤30s and
   is useless without the binding cookie. (Discuss: hash it if you want to be strict;
   then a reconnecting stream can't re-deliver it.)
@@ -337,7 +347,7 @@ backend/
 │   └── config/                   # UseCaseConfig (@Bean wiring) ✔, SecurityConfig, SessionConfig
 └── src/main/resources/
     ├── application.yml
-    └── lua/                      # scan.lua, approve.lua, reject.lua, exchange.lua
+    └── lua/                      # qr_create.lua, qr_transition.lua (generic CAS)
 ```
 
 Use-case classes carry **no Spring annotations**; they're registered as `@Bean`s in
@@ -378,7 +388,7 @@ those live behind ports, which `app/DependenciesProvider` fills with real implem
 1. **Skeleton** (done) — docker-compose Redis, Spring Boot app, Vite app, proxy, `/api/health`.
 2. **Normal login** (done) — users, `/api/auth/login`, Spring Session in Redis, CSRF, `/m/login`, `/api/me`.
 3. **QR create + render** (done) — `POST /api/qr/sessions`, binding cookie, QR on `/` (desktop).
-4. **Status via polling** — `GET /api/qr/sessions/{id}`, scan/approve/reject + Lua CAS.
+4. **Status via polling** (done) — `GET /api/qr/sessions/{id}`, scan/approve/reject + Lua CAS, `/m/approve/:qrId`.
    End-to-end works with a hard-coded qrId pasted on the phone.
 5. **SSE** — replace polling with `EventSource`; Redis pub/sub fan-out.
 6. **Exchange** — one-time code → session cookie → desktop logged in.

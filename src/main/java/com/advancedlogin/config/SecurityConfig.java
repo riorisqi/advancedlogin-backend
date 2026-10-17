@@ -31,6 +31,7 @@ class SecurityConfig {
                         .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/error").permitAll()
                         // The desktop asking for a QR is, by definition, not logged in yet.
                         .requestMatchers(HttpMethod.POST, "/api/qr/sessions").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/qr/sessions/*").permitAll() // guarded by qr_bind instead
                         .anyRequest().authenticated())
 
                 // Session cookie auth => CSRF protection is mandatory. spa(): token in a JS-readable

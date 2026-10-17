@@ -2,6 +2,7 @@ package com.advancedlogin.adapter.in.web.qr;
 
 import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase;
 import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase.CreatedQrSession;
+import com.advancedlogin.application.qr.port.in.GetQrSessionStatusUseCase;
 import com.advancedlogin.domain.qr.QrSession;
 import com.advancedlogin.domain.qr.RequestingDevice;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,6 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,13 +33,16 @@ class QrDesktopController {
     private static final Duration BIND_COOKIE_MAX_AGE = Duration.ofMinutes(5);
 
     private final CreateQrSessionUseCase createQrSession;
+    private final GetQrSessionStatusUseCase getQrSessionStatus;
     private final String approveBaseUrl;
     private final boolean secureCookies;
 
     QrDesktopController(CreateQrSessionUseCase createQrSession,
+                        GetQrSessionStatusUseCase getQrSessionStatus,
                         @Value("${app.qr.approve-base-url}") String approveBaseUrl,
                         @Value("${app.qr.secure-cookies:false}") boolean secureCookies) {
         this.createQrSession = createQrSession;
+        this.getQrSessionStatus = getQrSessionStatus;
         this.approveBaseUrl = approveBaseUrl;
         this.secureCookies = secureCookies;
     }
@@ -61,6 +68,22 @@ class QrDesktopController {
         return ResponseEntity.created(URI.create("/api/qr/sessions/" + qrId))
                 .header(HttpHeaders.SET_COOKIE, bindCookie.toString())
                 .body(new CreateQrSessionResponse(qrId, approveBaseUrl + "/m/approve/" + qrId, session.expiresAt()));
+    }
+
+    /**
+     * Status snapshot for polling. Requires this browser's qr_bind cookie: knowing the qrId
+     * (it's on screen!) isn't enough. Missing cookie, wrong cookie, unknown or expired id all
+     * give the same 404, which the desktop treats as "expired".
+     */
+    @GetMapping("/api/qr/sessions/{qrId}")
+    QrStatusResponse status(@PathVariable String qrId,
+                            @CookieValue(name = BIND_COOKIE, required = false) String bindingSecret) {
+        QrSession session = getQrSessionStatus.getStatus(QrIds.parse(qrId), bindingSecret);
+        return new QrStatusResponse(session.status().name(), session.expiresAt());
+    }
+
+    /** Deliberately minimal: the desktop learns nothing about *who* scanned until login completes. */
+    record QrStatusResponse(String status, Instant expiresAt) {
     }
 
     /**

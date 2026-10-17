@@ -1,9 +1,9 @@
 package com.advancedlogin.application.qr;
 
 import com.advancedlogin.application.qr.port.in.CreateQrSessionUseCase.CreatedQrSession;
-import com.advancedlogin.application.qr.port.out.QrSessionStore;
 import com.advancedlogin.domain.qr.QrSession;
 import com.advancedlogin.domain.qr.QrStatus;
+import com.advancedlogin.domain.qr.QrTimeouts;
 import com.advancedlogin.domain.qr.RequestingDevice;
 import org.junit.jupiter.api.Test;
 
@@ -11,7 +11,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -23,12 +22,14 @@ class CreateQrSessionServiceTest {
     private static final String ID_TOKEN = "a".repeat(43);
     private static final String SECRET_TOKEN = "b".repeat(43);
 
-    private final List<QrSession> stored = new ArrayList<>();
-    private final QrSessionStore store = stored::add;
+    private static final QrTimeouts TIMEOUTS = new QrTimeouts(
+            Duration.ofSeconds(90), Duration.ofSeconds(60), Duration.ofSeconds(30), Duration.ofSeconds(15));
+
+    private final InMemoryQrSessionStore store = new InMemoryQrSessionStore();
     private final Iterator<String> tokens = List.of(ID_TOKEN, SECRET_TOKEN).iterator();
 
     private final CreateQrSessionService service = new CreateQrSessionService(
-            store, tokens::next, Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofSeconds(90));
+            store, tokens::next, Clock.fixed(NOW, ZoneOffset.UTC), TIMEOUTS);
 
     @Test
     void createsPendingSessionThatExpiresAfterTtl() {
@@ -42,7 +43,7 @@ class CreateQrSessionServiceTest {
         assertThat(session.requestingDevice()).isEqualTo(device);
         assertThat(session.createdAt()).isEqualTo(NOW);
         assertThat(session.expiresAt()).isEqualTo(NOW.plusSeconds(90));
-        assertThat(stored).containsExactly(session);
+        assertThat(store.findById(session.id())).contains(session);
     }
 
     @Test
