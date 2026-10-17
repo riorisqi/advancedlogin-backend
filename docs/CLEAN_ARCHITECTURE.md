@@ -16,22 +16,7 @@ Business rules sit in the centre and know nothing about Spring, Redis, HTTP, Rea
 browser. Everything technical sits around the edge and depends on the centre, never the other
 way round.
 
-```
-        ┌──────────────────────────────────────────────┐
-        │  config / app   (wiring: creates and connects) │
-        │   ┌──────────────────────────────────────────┐ │
-        │   │  adapters / infrastructure / presentation │ │
-        │   │  (Spring MVC, Redis, SSE, fetch, React UI)│ │
-        │   │   ┌────────────────────────────────────┐ │ │
-        │   │   │  application (use cases + ports)    │ │ │
-        │   │   │   ┌──────────────────────────────┐ │ │ │
-        │   │   │   │  domain (rules, plain code)   │ │ │ │
-        │   │   │   └──────────────────────────────┘ │ │ │
-        │   │   └────────────────────────────────────┘ │ │
-        │   └──────────────────────────────────────────┘ │
-        └──────────────────────────────────────────────┘
-                 every arrow points inwards ──▶
-```
+![Clean architecture rings, backend and frontend](images/clean-architecture.svg)
 
 Why "inwards"? The inner rings change for *business* reasons ("a QR may only be approved by
 whoever scanned it"). The outer rings change for *technical* reasons (SSE instead of polling,
@@ -135,7 +120,7 @@ Each edge has its own shapes, and adapters translate:
 
 | Edge | Outside shape | Inside shape | Translated in |
 |---|---|---|---|
-| HTTP in | `LoginRequestResponse` record (JSON) | `QrSession` | `QrMobileController` |
+| HTTP (scan response) | `LoginRequestResponse` record (JSON) | `QrSession` | `QrMobileController` |
 | Redis | hash fields (`status`, `bindHash`, epoch millis) | `QrSession` | `RedisQrSessionStore.toFields/fromFields` |
 | Pub/Sub | `"CONFIRMED:1792…:Xy7…"` | `QrStatusUpdate` | `QrEventChannel.encode/decode` |
 | Session | `SessionUser` (Serializable) | `UserId` | `QrMobileController.userId(...)` |

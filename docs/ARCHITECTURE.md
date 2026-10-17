@@ -10,10 +10,12 @@ Want to break it? See [§11 *Attack yourself*](#11-attack-yourself). Study guide
 
 ![System overview](images/architecture.svg)
 
-One React app serves both "screens": desktop routes (`/login`, `/`) and phone routes
-(`/m/login`, `/m/scan`, `/m/approve/:qrId`). One Spring Boot app serves `/api/**`.
-In dev, Vite proxies `/api` to Spring, so the browser sees **one origin** → no CORS,
-cookies just work.
+One React app serves both "screens": the desktop route `/` (QR code when signed out, welcome
+when signed in) and the phone routes (`/m/login`, `/m`, `/m/scan`, `/m/approve/:qrId`). One
+Spring Boot app serves `/api/**`. In dev, Vite proxies `/api` to Spring, so the browser sees
+**one origin** → no CORS, cookies just work. Redis holds everything that has to be shared or
+expire: QR sessions, HTTP sessions, rate-limit counters, and the Pub/Sub channel that carries
+status updates to whichever instance holds the desktop's SSE stream.
 
 ---
 
@@ -42,18 +44,20 @@ correct.
 ever run 2 backend instances, the phone's `approve` may hit instance A while the
 desktop's stream is on instance B. Fix: every state change is published to Redis
 Pub/Sub channel `qr:events:{qrId}`; each instance forwards to its local emitters.
-We'll build it this way from day one even with one instance.
+Built this way from the start, even though dev runs a single instance
+([how an update travels](#get-apiqrsessionsqridevents--sse-stream-implemented-in-slice-5)).
 
 ### 2.2 Auth model: ✅ server-side sessions (Spring Session + Redis) with HttpOnly cookies
 
 Both the phone web page and the logged-in desktop are *browsers*, so:
 
-- **Cookie `SESSION`** — `HttpOnly; Secure; SameSite=Lax`. JS can't read it → XSS
-  can't steal it. Logout = delete server-side session (real revocation, unlike JWT).
+- **Cookie `SESSION`** — `HttpOnly; SameSite=Lax` (+ `Secure` behind HTTPS:
+  `server.servlet.session.cookie.secure`). JS can't read it → XSS can't steal it.
+  Logout = delete server-side session (real revocation, unlike JWT).
 - **CSRF protection** is then required for state-changing requests:
   Spring's `CookieCsrfTokenRepository` → React reads `XSRF-TOKEN` cookie and sends
   `X-XSRF-TOKEN` header. (Good thing to learn; JWT-in-header apps skip it.)
-- **Session fixation:** on successful QR exchange, issue a *new* session id.
+- **Session fixation:** on password login *and* on QR exchange, issue a *new* session id.
 
 *When would JWT make sense?* Later, when the phone becomes a native app (React
 Native/Flutter) — native apps have no cookie jar convention, so they'd use a
@@ -62,9 +66,10 @@ user?" via `SecurityContext`. We can add a bearer-token filter then.
 
 ### 2.3 Users store
 
-In-memory user store (`adapter/out/persistence/InMemoryUserRepository`), seeded at startup from
-`app.seed-users` with passwords hashed via the `PasswordHasher` port (BCrypt). Swapping to
-Postgres later = one new `UserRepository` adapter; no use case changes.
+In-memory user store (`adapter/out/persistence/InMemoryUserRepository`). With the `dev` profile,
+`config/DevUserSeeder` fills it at startup from `app.seed-users` in `application-dev.yml`, hashing
+the passwords via the `PasswordHasher` port (BCrypt). Without that profile there are no users.
+Swapping to Postgres later = one new `UserRepository` adapter; no use case changes.
 
 ---
 
@@ -95,12 +100,12 @@ Rules:
 ## 5. API
 
 Conventions: JSON, errors as RFC 7807 `application/problem+json`
-(Spring 6 `ProblemDetail`). All IDs/codes are base64url.
+(Spring's `ProblemDetail`). All IDs/codes are base64url.
 
 ### 5.1 Desktop (anonymous)
 
 #### `POST /api/qr/sessions` — create a QR session (implemented in slice 3)
-- Anonymous, but CSRF-protected like every POST. Rate limiting per IP comes in slice 8.
+- Anonymous, but CSRF-protected like every POST. Rate-limited per IP (`qr-create`, [§7](#7-rate-limiting)).
 - Response `201` + `Location: /api/qr/sessions/{qrId}`:
   ```json
   {
@@ -140,6 +145,7 @@ Conventions: JSON, errors as RFC 7807 `application/problem+json`
   data: {"status":"SCANNED","expiresAt":"…","serverTime":"…"}
   data: {"status":"CONFIRMED","expiresAt":"…","exchangeCode":"Xy7…","serverTime":"…"}
   data: {"status":"REJECTED","expiresAt":"…","serverTime":"…"}
+  data: {"status":"CONSUMED","expiresAt":"…","serverTime":"…"}
   ```
   `serverTime` replaces the `Date` header for clock-skew correction (EventSource hides headers).
 - Server closes the stream after a terminal status (REJECTED/CONSUMED). Heartbeat comment
@@ -152,18 +158,7 @@ Conventions: JSON, errors as RFC 7807 `application/problem+json`
 
 **How an update travels (works with any number of backend instances):**
 
-```
-phone POST /approve ──▶ instance A: QrSessionService ──CAS ok──▶ QrStatusPublisher
-                                                                   │ (RedisQrStatusPublisher)
-                                                                   ▼
-                                     Redis PUBLISH qr:events:{qrId} "CONFIRMED:<expiresAt>"
-                                                                   │  PSUBSCRIBE qr:events:*
-                                         ┌─────────────────────────┴───────────────┐
-                                         ▼                                         ▼
-                        instance A: RedisQrEventSubscriber          instance B: RedisQrEventSubscriber
-                                         │                                         │
-                                 QrStatusStreams (local emitters)        QrStatusStreams ──▶ desktop's SSE
-```
+![Status update fan-out through Redis Pub/Sub](images/sse-fanout.svg)
 
 Code map: port `application/qr/port/out/QrStatusPublisher` · outbound
 `adapter/out/redis/RedisQrStatusPublisher` · inbound `adapter/in/redis/RedisQrEventSubscriber`
@@ -173,8 +168,9 @@ wiring `config/RedisMessagingConfig`. Frontend: port `QrStatusStream`, adapter
 `infrastructure/qr/sseQrStatusStream.ts`, fallback in `useQrLogin`.
 
 #### `GET /api/qr/sessions/{qrId}` — status snapshot (implemented in slice 4)
-- Requires the `qr_bind` cookie. Response `200 {"status":"SCANNED","expiresAt":"…"}`.
-  Missing/wrong cookie, unknown or expired id → `404` (the desktop treats it as EXPIRED).
+- Requires the `qr_bind` cookie. Response `200 {"status":"SCANNED","expiresAt":"…"}`
+  (plus `"exchangeCode"` while CONFIRMED). Missing/wrong cookie, unknown or expired id → `404`
+  (the desktop treats it as EXPIRED). Rate-limited per IP together with the stream (`qr-status`).
 - The desktop polls it every 2s (`useQrLogin`, `setTimeout` chain so polls never overlap).
   Since slice 5 this is only the fallback: used when the SSE stream can't be (no EventSource,
   or it closed for good).
@@ -218,7 +214,8 @@ How the pieces fit:
   session → Spring Session writes it to Redis under `advancedlogin:session:*`.
 - **Timing-safe login:** an unknown username still runs one BCrypt comparison, so response time
   doesn't reveal which usernames exist (`AuthenticateUserService`).
-- Test accounts are seeded from `app.seed-users` in `application.yml` (no sign-up flow).
+- Test accounts are seeded from `app.seed-users` in `application-dev.yml`, only with the `dev`
+  profile (no sign-up flow).
 
 #### `POST /api/qr/sessions/{qrId}/scan` (implemented in slice 4)
 - PENDING → SCANNED, locks to current user, TTL reset to 60s (time to decide).
@@ -268,10 +265,10 @@ SCANNED → REJECTED (kept 15s so the desktop can show it), only by the user who
 
 | Key | Type | Content | TTL |
 |---|---|---|---|
-| `qr:s:{qrId}` | HASH | `status`, `bindHash`, `createdAt`, `ip`, `userAgent`, `scannedBy`, `scannedAt`, `code` | 90s PENDING → 60s after SCANNED → 30s after CONFIRMED → 15s after terminal (so a reconnecting stream still sees the final state) |
-| `qr:events:{qrId}` | Pub/Sub channel | `STATUS:expiresAtMillis` on every stored transition | — |
-| `rl:{rule}:{subject}` | STRING (counter) | fixed-window counter, `lua/rate_limit.lua` (`INCR` + `PEXPIRE` on first hit) | the rule's window (1 min) |
-| `spring:session:*` | managed by Spring Session | HTTP sessions | 30 min idle |
+| `qr:s:{qrId}` | HASH | `status`, `bindHash`, `ip`, `userAgent`, `location`, `createdAt`, `expiresAt`, `exchangeCode`, + `scannedBy`, `scannedAt` once scanned | 90s PENDING → 60s after SCANNED → 30s after CONFIRMED → 15s after terminal (so a reconnecting stream still sees the final state) |
+| `qr:events:{qrId}` | Pub/Sub channel | `STATUS:expiresAtMillis[:exchangeCode]` on every stored transition | — |
+| `rl:{rule}:{subject}` | STRING (counter) | fixed-window counter, `lua/rate_limit.lua` (`INCR` + `PEXPIRE` on first hit); subject = client IP or username | the rule's window (1 min) |
+| `advancedlogin:session:*` | managed by Spring Session (`spring.session.data.redis.namespace`) | HTTP sessions | 30 min idle |
 
 Notes:
 - **Random values:** `qrId`, bind secret, exchange code = 32 bytes from `SecureRandom`,
@@ -318,14 +315,7 @@ How:
 - Trade-offs: a fixed window allows a 2× burst around the boundary (fine here); per-username
   limits let someone lock a known account out for a minute (mild, temporary).
 
----|---|---|
-| `POST /api/qr/sessions` | 10/min | stop Redis flooding / QR farming |
-| `GET …/{qrId}` + `…/events` | 60/min | stop brute-force probing (cheap defense, ids are 256-bit anyway) |
-| `POST …/exchange` | 10/min | limit code guessing |
-| `POST /api/auth/login` | 5/min per IP+username | password brute force |
-
-Implemented as a `OncePerRequestFilter` using Redis `INCR`. (Bucket4j is an option
-later; writing it by hand is a nice exercise.)
+Written by hand on purpose (a nice exercise); Bucket4j would be the library option.
 
 ---
 
@@ -335,23 +325,27 @@ Routes (React Router):
 
 | Route | Who | What |
 |---|---|---|
-| `/` | desktop | signed out: create session → render QR (`qrcode.react`) → `EventSource` → react to status; auto-refresh QR on EXPIRED (max 3×, then "Click to reload") |
+| `/` | desktop | signed out: create session → render QR (`qrcode.react`) → `EventSource` → react to status; auto-refresh QR on EXPIRED (max 3×, then "Reload QR code"). Signed in: "Welcome" + sign out |
 | `/status` | any | backend + Redis health |
 | `/m/login` | phone | username/password form |
+| `/m` | phone | home: "Scan QR code", sign out |
 | `/m/scan` | phone | camera scanner (`getUserMedia` + `BarcodeDetector` via the `barcode-detector` ponyfill / ZXing-wasm); accepts only our own approve link (`parseApproveLink`), then navigates to approve; "paste the link" fallback |
 | `/m/approve/:qrId` | phone | calls `scan`, shows device/IP/location/time, **Approve / Reject** buttons |
 
-Frontend learning topics this touches: custom hooks (`useQrSession` wrapping
-`EventSource` + a reducer for the state machine), discriminated-union types for
-status, protected routes, a fetch wrapper that adds the CSRF header.
+Frontend learning topics this touches: custom hooks (`useQrLogin`: create, SSE with polling
+fallback, countdown, exchange), ports + React context for dependency injection, a pure
+`applySnapshot` state transition, protected routes (`RequireAuth`), and a fetch wrapper that adds
+the CSRF header (`httpClient`).
 
 ```ts
-type QrStatus =
-  | { status: "PENDING"; expiresAt: string }
-  | { status: "SCANNED"; expiresAt: string }
-  | { status: "CONFIRMED"; code: string }
-  | { status: "REJECTED" }
-  | { status: "EXPIRED" };
+// domain/qr/qrSession.ts: mirrors the backend state machine (§3)
+type QrStatus = 'PENDING' | 'SCANNED' | 'CONFIRMED' | 'REJECTED' | 'CONSUMED' | 'EXPIRED'
+
+type QrStatusSnapshot = {
+  status: QrStatus
+  expiresAt?: Date        // already converted to this browser's clock
+  exchangeCode?: string   // only with CONFIRMED
+}
 ```
 
 ### 8.1 Phone on the LAN (implemented in slice 7)
@@ -362,6 +356,8 @@ A phone reaching your PC via `http://192.168.x.x` is **not** secure, so:
 - `bun run dev:lan` = `vite --mode lan`: `@vitejs/plugin-basic-ssl` (self-signed cert) +
   `server.host: true`. The phone shows a certificate warning once; accept it. (`mkcert` with its
   root CA installed on the phone avoids the warning; more setup.)
+- LAN mode also sets `hmr: false, ws: false`: Bun crashes on WebSocket upgrades over HTTPS, so
+  there's no hot reload there (refresh after a change).
 - Open the **desktop** at the printed `https://<LAN-IP>:5173` address too, so the QR link (built
   from the desktop's Origin) is reachable from the phone.
 - Vite proxy has `xfwd: true` and Spring `server.forward-headers-strategy: native`: Tomcat's
@@ -386,17 +382,12 @@ our own build, not a CDN) → hook `useQrScanner` → `MobileScanPage`. Two rule
 Two separate git repos side by side (no repo at the top level). Both follow the same
 **dependency rule: source-code dependencies only point inwards.**
 
-```
-   outer ──────────────────────────────────────────▶ inner
-   config / app   →   adapters / infrastructure + presentation   →   application   →   domain
-   (wiring)           (HTTP, Redis, SSE, React UI)                   (use cases,        (entities,
-                                                                     ports)              rules)
-```
+![Clean architecture rings, backend and frontend](images/clean-architecture.svg)
 
 - **domain** — business objects and rules (`QrSession`, state transitions). Plain code: no
   framework, no I/O. The most stable layer.
-- **application** — use cases (`ScanQrSession`, `ApproveQrSession`…) and **ports**: interfaces
-  for what a use case needs from the outside world (`QrSessionStore`, `QrEventPublisher`).
+- **application** — use cases (`ScanQrSessionUseCase`, `ApproveQrSessionUseCase`…) and **ports**:
+  interfaces for what a use case needs from the outside world (`QrSessionStore`, `QrStatusPublisher`).
 - **adapters / infrastructure** — implement the ports with real tech (Redis + Lua, SSE,
   Spring MVC controllers, `fetch`). Replaceable without touching use cases.
 - **config / app** — the composition root that wires concrete adapters into use cases.
@@ -413,36 +404,45 @@ The rule is **enforced by the build**, not just by convention:
 
 ```
 backend/
-├── docs/                         # CLAUDE.md (project context), this design doc, images
-├── docker-compose.yml            # redis + redisinsight
+├── docs/                         # design docs (this file, RUNNING, SECURITY, ...) + images/
+├── docker-compose.yml            # Redis + RedisInsight, bound to 127.0.0.1, with a password
 ├── src/main/java/com/advancedlogin/
 │   ├── AdvancedLoginApplication.java
-│   ├── domain/                   # plain Java — no Spring imports (ArchUnit-checked)
-│   │   ├── health/               # HealthStatus, SystemHealth            ✔ slice 1
+│   ├── domain/                   # plain Java, no Spring imports (ArchUnit-checked)
+│   │   ├── health/               # HealthStatus, SystemHealth
 │   │   ├── user/                 # User, UserId
-│   │   └── qr/                   # QrSession, QrStatus, QrSessionId, ExchangeCode, DeviceInfo
-│   ├── application/              # use cases + ports — no Spring imports (ArchUnit-checked)
-│   │   ├── health/               # CheckHealthService, port/in, port/out  ✔ slice 1
-│   │   ├── auth/                 # LoginService, port/out/UserRepository, PasswordHasher
+│   │   └── qr/                   # QrSession (state machine), QrStatus, QrSessionId, BindingHash,
+│   │                             # RequestingDevice, QrTimeouts, QrStatusUpdate, exceptions
+│   ├── application/              # use cases + ports, no Spring imports (ArchUnit-checked)
+│   │   ├── health/               # CheckHealthService, port/in, port/out/DataStoreHealthPort
+│   │   ├── auth/                 # AuthenticateUserService, GetUserService,
+│   │   │                         # port/out/UserRepository, PasswordHasher
+│   │   ├── ratelimit/            # RateLimitService, RateLimit, port/out/RateLimiter
 │   │   └── qr/
-│   │       ├── port/in/          # CreateQrSessionUseCase, ScanQrSessionUseCase, ...
-│   │       ├── port/out/         # QrSessionStore, QrEventPublisher, SecureRandomTokens
-│   │       └── *Service.java     # use case implementations
+│   │       ├── port/in/          # Create/Scan/Approve/Reject QrSession, ExchangeQrCode, GetQrSessionStatus
+│   │       ├── port/out/         # QrSessionStore, QrStatusPublisher, RandomTokenGenerator, IpLocationLookup
+│   │       └── *Service.java     # CreateQrSessionService, QrSessionService
 │   ├── adapter/
-│   │   ├── in/web/               # @RestControllers, request/response DTOs, SSE endpoint
-│   │   │   ├── health/           # HealthController                      ✔ slice 1
-│   │   │   ├── auth/
-│   │   │   └── qr/               # QrDesktopController, QrMobileController, QrStatusStreams (SSE)
+│   │   ├── in/web/               # ApiExceptionHandler (exceptions → problem+json)
+│   │   │   ├── health/           # HealthController
+│   │   │   ├── auth/             # AuthController (csrf, login, logout, me)
+│   │   │   ├── qr/               # QrDesktopController, QrMobileController, QrStatusStreams (SSE),
+│   │   │   │                     # ApproveLinks, UserAgentSummary
+│   │   │   ├── ratelimit/        # RateLimitFilter (per-IP rules, before Spring Security)
+│   │   │   └── security/         # WebSessionAuthenticator, SessionUser
 │   │   ├── in/redis/             # RedisQrEventSubscriber (Pub/Sub → local SSE streams)
 │   │   ├── common/redis/         # QrEventChannel (Pub/Sub wire format, shared by in & out)
 │   │   └── out/
-│   │       ├── redis/            # RedisDataStoreHealthAdapter ✔, RedisQrSessionStore (+ Lua),
-│   │       │                     # RedisQrStatusPublisher (pub/sub)
-│   │       └── persistence/      # user store (in-memory/H2 at first)
-│   └── config/                   # UseCaseConfig (@Bean wiring) ✔, SecurityConfig, SessionConfig
+│   │       ├── redis/            # RedisQrSessionStore (+ Lua), RedisQrStatusPublisher,
+│   │       │                     # RedisRateLimiter, RedisDataStoreHealthAdapter
+│   │       ├── persistence/      # InMemoryUserRepository
+│   │       ├── security/         # SpringPasswordHasher (BCrypt), SecureRandomTokenGenerator
+│   │       └── geo/              # GeoIpLocationLookup (optional offline .mmdb)
+│   └── config/                   # UseCaseConfig (@Bean wiring), SecurityConfig, RateLimitConfig,
+│                                 # RedisMessagingConfig, DevUserSeeder (dev profile only)
 └── src/main/resources/
-    ├── application.yml
-    └── lua/                      # qr_create.lua, qr_transition.lua (generic CAS)
+    ├── application.yml           # + application-dev.yml (test accounts, dev Redis password)
+    └── lua/                      # qr_create.lua, qr_transition.lua (generic CAS), rate_limit.lua
 ```
 
 Use-case classes carry **no Spring annotations**; they're registered as `@Bean`s in
@@ -453,22 +453,26 @@ Use-case classes carry **no Spring annotations**; they're registered as `@Bean`s
 ```
 frontend/src/
 ├── domain/                       # plain TS: types + pure logic, no React
-│   ├── health/                   # SystemHealth                          ✔ slice 1
-│   └── qr/                       # QrStatus union, state-machine reducer
+│   ├── health/                   # systemHealth
+│   ├── user/                     # User
+│   └── qr/                       # qrSession (QrStatus, countdown), approveLink (+ test), loginRequest
 ├── application/                  # use-case hooks + ports (may use React, not infrastructure)
-│   ├── ports/                    # HealthGateway ✔, AuthGateway, QrGateway, QrStatusStream
-│   ├── dependencies.ts           # Dependencies type + context + useDependencies() ✔
-│   ├── health/                   # useSystemHealth                       ✔ slice 1
-│   ├── auth/                     # useLogin, useCurrentUser
-│   └── qr/                       # useQrSession, useApproveQr
+│   ├── ports/                    # HealthGateway, AuthGateway, QrGateway, QrStatusStream,
+│   │                             # QrApprovalGateway, QrCodeScanner
+│   ├── dependencies.ts           # Dependencies type + context + useDependencies()
+│   ├── health/                   # useSystemHealth
+│   ├── auth/                     # AuthProvider, authContext, errors
+│   └── qr/                       # useQrLogin (desktop), useQrScanner, useQrApproval (phone), errors
 ├── infrastructure/               # implements ports: fetch, EventSource, camera
-│   ├── http/                     # httpClient (later: CSRF header)       ✔
-│   ├── health/                   # httpHealthGateway (DTO → domain)     ✔
-│   └── qr/                       # httpQrGateway, sseQrStatusStream
-├── presentation/                 # React components & pages — talk to hooks only
-│   ├── components/               # StatusRow ✔, QrCode, DeviceInfoCard
-│   └── pages/                    # HealthPage ✔, QrLoginPage, MobileLoginPage, ApprovePage
-├── app/                          # composition root: DependenciesProvider ✔, App, routes
+│   ├── http/                     # httpClient (CSRF header), serverClock (clock skew)
+│   ├── auth/, health/            # httpAuthGateway, httpHealthGateway (DTO → domain)
+│   ├── qr/                       # httpQrGateway, httpQrApprovalGateway, sseQrStatusStream
+│   └── camera/                   # cameraQrCodeScanner (getUserMedia + ZXing wasm)
+├── presentation/                 # React components & pages, talk to hooks only
+│   ├── components/               # QrLoginPanel, Countdown, Card, RequireAuth, StatusRow, SystemStatus
+│   └── pages/                    # HomePage, StatusPage, MobileLoginPage, MobileHomePage,
+│                                 # MobileScanPage, MobileApprovePage
+├── app/                          # composition root: DependenciesProvider, App (routes)
 └── main.tsx
 ```
 

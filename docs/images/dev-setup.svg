@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 520" width="1040" height="520" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Testing with a real phone: what runs where</title>
+  <defs>
+    <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker>
+    <marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#16a34a"/></marker>
+    <pattern id="brick" width="16" height="10" patternUnits="userSpaceOnUse">
+      <rect width="16" height="10" fill="#fdba74"/>
+      <path d="M0 0.5 H16 M0 5.5 H16 M8 0.5 V5.5 M0.5 5.5 V10.5" stroke="#c2410c" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <style>
+    .t { font-size: 15px; font-weight: 700; fill: #0f172a; }
+    .b { font-size: 12.5px; fill: #1e293b; }
+    .x { font-size: 11.5px; fill: #64748b; }
+    .m { font-family: Consolas, Menlo, monospace; font-size: 11.5px; fill: #0f172a; }
+  </style>
+
+  <rect x="1" y="1" width="1038" height="518" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="30" y="42" font-size="22" font-weight="700" fill="#0f172a">Testing with a real phone: what runs where</text>
+  <text x="30" y="64" font-size="13" fill="#64748b">bun run dev:lan: the phone only ever reaches Vite on port 5173 (HTTPS). Spring Boot and Redis stay private to your PC.</text>
+
+  <!-- phone -->
+  <rect x="30" y="150" width="190" height="170" rx="14" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <g transform="translate(46 164)" fill="none" stroke="#16a34a" stroke-width="2.2"><rect width="20" height="34" rx="4"/><path d="M7 29 h6"/></g>
+  <text x="78" y="180" class="t">Phone</text>
+  <text x="78" y="198" class="x">on the Wi-Fi</text>
+  <text x="46" y="228" class="b">opens</text>
+  <text x="46" y="246" class="m">https://192.168.x.x</text>
+  <text x="46" y="262" class="m">:5173/m</text>
+  <text x="46" y="290" class="x">accept the certificate</text>
+  <text x="46" y="306" class="x">warning once</text>
+
+  <!-- router -->
+  <rect x="262" y="196" width="120" height="78" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+  <g transform="translate(298 208)" fill="none" stroke="#475569" stroke-width="2.2" stroke-linecap="round">
+    <rect x="0" y="14" width="48" height="16" rx="4"/>
+    <path d="M10 14 V2 M38 14 V2"/>
+    <circle cx="12" cy="22" r="1.5" fill="#475569"/><circle cx="20" cy="22" r="1.5" fill="#475569"/>
+  </g>
+  <text x="322" y="256" class="b" text-anchor="middle" font-weight="700">Router</text>
+  <text x="322" y="268" class="x" text-anchor="middle">same network</text>
+  <path d="M220 235 L258 235" stroke="#16a34a" stroke-width="2.4" marker-end="url(#ap)"/>
+  <text x="239" y="226" class="x" text-anchor="middle">Wi-Fi</text>
+
+  <!-- PC -->
+  <rect x="420" y="88" width="596" height="352" rx="16" fill="#f8fafc" stroke="#64748b" stroke-width="1.8"/>
+  <g transform="translate(438 102)" fill="none" stroke="#334155" stroke-width="2.2"><rect width="30" height="20" rx="3"/><path d="M10 26 h10 M15 20 v6"/></g>
+  <text x="478" y="118" class="t">Your PC (Windows)</text>
+  <text x="478" y="134" class="x">Ethernet cable or Wi-Fi to the same router · LAN address 192.168.x.x</text>
+  <path d="M382 235 L432 235" stroke="#16a34a" stroke-width="2.4" marker-end="url(#ap)"/>
+  <text x="404" y="226" class="x" text-anchor="middle">LAN</text>
+
+  <!-- firewall -->
+  <rect x="436" y="160" width="26" height="150" rx="4" fill="url(#brick)" stroke="#c2410c"/>
+  <text x="449" y="330" class="x" text-anchor="middle">Windows</text>
+  <text x="449" y="344" class="x" text-anchor="middle">Firewall</text>
+  <path d="M462 235 L486 235" stroke="#16a34a" stroke-width="2.4" marker-end="url(#ap)"/>
+
+  <!-- vite -->
+  <rect x="490" y="160" width="176" height="150" rx="12" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1.5"/>
+  <path d="M514 172 l-10 18 h8 l-3 15 l13 -20 h-8 l5 -13 z" fill="#8b5cf6"/>
+  <text x="532" y="188" class="t">Vite :5173</text>
+  <text x="532" y="204" class="x">frontend/</text>
+  <text x="506" y="232" class="m">bun run dev:lan</text>
+  <text x="506" y="254" class="b">HTTPS (self-signed)</text>
+  <text x="506" y="274" class="b">all network interfaces</text>
+  <text x="506" y="294" class="b">no hot reload: refresh</text>
+
+  <!-- spring -->
+  <rect x="704" y="160" width="146" height="150" rx="12" fill="#f7fee7" stroke="#6db33f" stroke-width="1.5"/>
+  <g transform="translate(718 172)"><circle cx="12" cy="12" r="12" fill="#6db33f"/><path d="M7 17 C7 9 12 6 19 6 C19 13 16 18 10 18 M7 17 L13 11" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g>
+  <text x="748" y="188" class="t">Spring Boot</text>
+  <text x="748" y="204" class="x">backend/</text>
+  <text x="718" y="232" class="m">:8080</text>
+  <text x="718" y="254" class="b">profile dev</text>
+  <text x="718" y="274" class="b">reached only via</text>
+  <text x="718" y="292" class="b">Vite's /api proxy</text>
+  <path d="M666 235 L700 235" stroke="#334155" stroke-width="2" marker-end="url(#ad)"/>
+  <text x="683" y="226" class="m" text-anchor="middle">/api</text>
+
+  <!-- redis -->
+  <rect x="880" y="160" width="120" height="150" rx="12" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+  <g transform="translate(894 172)">
+    <path d="M0 6 L12 0 L24 6 L12 12 z" fill="#dc382d"/>
+    <path d="M0 12 L12 18 L24 12" fill="none" stroke="#dc382d" stroke-width="2.5"/>
+    <path d="M0 18 L12 24 L24 18" fill="none" stroke="#dc382d" stroke-width="2.5"/>
+  </g>
+  <text x="926" y="190" class="t">Redis</text>
+  <text x="894" y="232" class="m">:6379</text>
+  <text x="894" y="254" class="b">Docker</text>
+  <text x="894" y="274" class="b">127.0.0.1 only</text>
+  <text x="894" y="292" class="b">+ password</text>
+  <path d="M850 235 L876 235" stroke="#334155" stroke-width="2" marker-end="url(#ad)"/>
+
+  <!-- desktop browser on the PC -->
+  <rect x="490" y="340" width="262" height="86" rx="12" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text x="506" y="364" class="t">Desktop browser (this PC)</text>
+  <text x="506" y="384" class="m">https://192.168.x.x:5173</text>
+  <text x="506" y="404" class="x">not localhost: the QR's link uses this</text>
+  <text x="506" y="418" class="x">address, so the phone can open it</text>
+  <path d="M578 340 L578 314" stroke="#334155" stroke-width="2" marker-end="url(#ad)"/>
+
+  <!-- wsl, crossed out -->
+  <rect x="776" y="340" width="224" height="86" rx="12" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="792" y="364" class="t" fill="#64748b">vEthernet (WSL)</text>
+  <text x="792" y="384" class="m" text-decoration="line-through">172.x.x.x:5173</text>
+  <text x="792" y="404" class="x">virtual network inside the PC:</text>
+  <text x="792" y="418" class="x">the phone can't reach it</text>
+  <g transform="translate(964 352)" stroke="#dc2626" stroke-width="3.5" stroke-linecap="round"><path d="M0 0 L20 20 M20 0 L0 20"/></g>
+
+  <!-- checklist -->
+  <g font-size="12.5" fill="#1e293b">
+    <text x="30" y="470" font-weight="700">Once, on Windows:</text>
+    <text x="150" y="470">network profile <tspan font-weight="700">Private</tspan> (not Public)  ·  firewall rule allowing inbound <tspan class="m">TCP 5173</tspan>  ·  guest Wi-Fi often isolates devices: use the main one</text>
+    <text x="30" y="494" fill="#64748b">Camera access needs a secure origin (https:// or localhost): that's why LAN mode serves HTTPS.</text>
+  </g>
+</svg>

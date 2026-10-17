@@ -10,16 +10,14 @@ Commands are written for **Windows (PowerShell)**, the main dev machine. On macO
 
 ## 1. What runs where
 
-```
- Phone (same Wi-Fi) ──https──┐
-                             ▼
- Desktop browser ──────▶ Vite dev server :5173 ──/api──▶ Spring Boot :8080 ──▶ Redis :6379
-                         (frontend/, bun)               (backend/, Java 21)    (Docker, localhost only)
-```
+![What runs where: phone and PC on one router, Vite in front of Spring Boot and Redis](images/dev-setup.svg)
 
 - The browser (desktop *and* phone) only ever talks to **Vite on :5173**. Vite proxies `/api/*`
   to Spring Boot, so there's one origin, no CORS, and cookies behave as in production.
 - Spring Boot and Redis are only reached from your PC, never directly from the phone.
+- On one PC ([§4](#4-try-a-qr-login-on-one-pc-no-phone)) everything is `http://localhost:5173`.
+  The phone setup ([§5](#5-test-with-a-real-phone-camera-scanner)) is the picture above:
+  `bun run dev:lan` makes Vite serve HTTPS on your LAN address.
 
 ---
 

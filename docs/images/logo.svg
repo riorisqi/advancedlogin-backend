@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <title>AdvancedLogin logo</title>
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="26" fill="url(#lg)"/>
+  <g fill="none" stroke="#fff" stroke-width="5">
+    <rect x="20.5" y="20.5" width="29" height="29" rx="5"/>
+    <rect x="70.5" y="20.5" width="29" height="29" rx="5"/>
+    <rect x="20.5" y="70.5" width="29" height="29" rx="5"/>
+  </g>
+  <g fill="#fff">
+    <rect x="29" y="29" width="12" height="12" rx="2"/>
+    <rect x="79" y="29" width="12" height="12" rx="2"/>
+    <rect x="29" y="79" width="12" height="12" rx="2"/>
+    <rect x="56" y="22" width="7" height="7" rx="1.5"/>
+    <rect x="56" y="38" width="7" height="7" rx="1.5"/>
+    <rect x="56" y="56" width="7" height="7" rx="1.5"/>
+    <rect x="22" y="56" width="7" height="7" rx="1.5"/>
+    <rect x="40" y="56" width="7" height="7" rx="1.5"/>
+    <rect x="72" y="56" width="7" height="7" rx="1.5"/>
+    <rect x="56" y="74" width="7" height="7" rx="1.5"/>
+    <rect x="56" y="92" width="7" height="7" rx="1.5"/>
+  </g>
+  <circle cx="88" cy="88" r="20" fill="#22c55e" stroke="#fff" stroke-width="4"/>
+  <path d="M78.5 88.5 l6.5 6.5 l12.5 -13" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

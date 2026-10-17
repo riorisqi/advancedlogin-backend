@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" width="760" height="180" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>AdvancedLogin: QR code login, end to end</title>
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="758" height="178" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+
+  <!-- logo -->
+  <g transform="translate(30 30)">
+    <rect width="120" height="120" rx="26" fill="url(#lg)"/>
+    <g fill="none" stroke="#fff" stroke-width="5">
+      <rect x="20.5" y="20.5" width="29" height="29" rx="5"/>
+      <rect x="70.5" y="20.5" width="29" height="29" rx="5"/>
+      <rect x="20.5" y="70.5" width="29" height="29" rx="5"/>
+    </g>
+    <g fill="#fff">
+      <rect x="29" y="29" width="12" height="12" rx="2"/>
+      <rect x="79" y="29" width="12" height="12" rx="2"/>
+      <rect x="29" y="79" width="12" height="12" rx="2"/>
+      <rect x="56" y="22" width="7" height="7" rx="1.5"/>
+      <rect x="56" y="38" width="7" height="7" rx="1.5"/>
+      <rect x="56" y="56" width="7" height="7" rx="1.5"/>
+      <rect x="22" y="56" width="7" height="7" rx="1.5"/>
+      <rect x="40" y="56" width="7" height="7" rx="1.5"/>
+      <rect x="72" y="56" width="7" height="7" rx="1.5"/>
+      <rect x="56" y="74" width="7" height="7" rx="1.5"/>
+      <rect x="56" y="92" width="7" height="7" rx="1.5"/>
+    </g>
+    <circle cx="88" cy="88" r="20" fill="#22c55e" stroke="#fff" stroke-width="4"/>
+    <path d="M78.5 88.5 l6.5 6.5 l12.5 -13" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <text x="178" y="76" font-size="40" font-weight="700" fill="#0f172a">AdvancedLogin</text>
+  <text x="180" y="106" font-size="18" fill="#475569">Scan with your phone, approve, and the computer is signed in.</text>
+
+  <!-- tech chips -->
+  <g font-size="13" font-weight="600" text-anchor="middle">
+    <rect x="180" y="124" width="104" height="26" rx="13" fill="#ecfccb" stroke="#6db33f"/>
+    <text x="232" y="142" fill="#3f6212">Spring Boot 4</text>
+    <rect x="292" y="124" width="74" height="26" rx="13" fill="#fee2e2" stroke="#dc382d"/>
+    <text x="329" y="142" fill="#991b1b">Redis 8</text>
+    <rect x="374" y="124" width="82" height="26" rx="13" fill="#e0f2fe" stroke="#149eca"/>
+    <text x="415" y="142" fill="#075985">React 19</text>
+    <rect x="464" y="124" width="92" height="26" rx="13" fill="#dbeafe" stroke="#3178c6"/>
+    <text x="510" y="142" fill="#1e40af">TypeScript</text>
+    <rect x="564" y="124" width="56" height="26" rx="13" fill="#ede9fe" stroke="#8b5cf6"/>
+    <text x="592" y="142" fill="#5b21b6">Vite</text>
+    <rect x="628" y="124" width="104" height="26" rx="13" fill="#ffedd5" stroke="#ea580c"/>
+    <text x="680" y="142" fill="#9a3412">SSE + Pub/Sub</text>
+  </g>
+</svg>

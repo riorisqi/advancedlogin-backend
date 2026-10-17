@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/banner.svg" alt="AdvancedLogin: QR code login, end to end" width="760"></p>
+
 # AdvancedLogin — Backend
 
 QR code login, built end to end as a learning project: like WhatsApp Web, Discord or Steam,
@@ -16,13 +18,16 @@ The React app lives in the sibling repo [`advancedlogin-frontend`](https://githu
 | Clean architecture study guide (backend + frontend) | [docs/CLEAN_ARCHITECTURE.md](docs/CLEAN_ARCHITECTURE.md) |
 | Security status, audit logging plan, hardening backlog | [docs/SECURITY.md](docs/SECURITY.md) |
 
-<p align="center"><img src="docs/images/sequence.svg" alt="QR login sequence" width="720"></p>
+<p align="center"><img src="docs/images/architecture.svg" alt="System overview: desktop and phone browsers, Vite dev server, Spring Boot API, Redis" width="860"></p>
+
+The full message flow is in [ARCHITECTURE.md §4](docs/ARCHITECTURE.md#4-full-sequence).
 
 ## Stack
 
 - Java 21, Spring Boot 4.1 (Spring MVC, Spring Security 7, Spring Session)
 - Redis 8: QR sessions (hash + TTL), Lua compare-and-set, Pub/Sub, HTTP sessions
 - Server-Sent Events (`SseEmitter`) for live status to the desktop
+- Optional offline GeoIP (MaxMind-format `.mmdb`, `geoip2`) for the location shown on the phone
 - Tests: JUnit 5, AssertJ, Testcontainers (real Redis), ArchUnit (architecture rules)
 
 ## Quick start
@@ -89,12 +94,13 @@ src/main/java/com/advancedlogin/
 ├── domain/        plain Java: QrSession state machine, User, value objects
 ├── application/   use cases + ports (interfaces the use cases need), no Spring imports
 ├── adapter/
-│   ├── in/web     REST controllers, SSE streams, DTOs
-│   ├── in/redis   Pub/Sub subscriber
-│   ├── out/redis  Redis store (+ Lua scripts), Pub/Sub publisher, health check
-│   └── out/...    password hashing, token generation, in-memory users
-└── config/        wiring: use-case beans, Spring Security, Redis messaging
-src/main/resources/lua/   qr_create.lua, qr_transition.lua (atomic compare-and-set)
+│   ├── in/web       REST controllers, SSE streams, DTOs, rate-limit filter, session login helper
+│   ├── in/redis     Pub/Sub subscriber
+│   ├── common/redis Pub/Sub message format (shared by in and out)
+│   ├── out/redis    Redis store (+ Lua scripts), Pub/Sub publisher, rate limiter, health check
+│   └── out/...      password hashing, token generation, in-memory users, GeoIP lookup
+└── config/          wiring: use-case beans, Spring Security, rate limits, Redis messaging, dev seed users
+src/main/resources/lua/   qr_create.lua, qr_transition.lua (atomic compare-and-set), rate_limit.lua
 ```
 
 Details and the reasoning behind each layer: [CLEAN_ARCHITECTURE.md §3](docs/CLEAN_ARCHITECTURE.md#3-backend-spring-boot).
@@ -155,5 +161,5 @@ docker exec -it -e REDISCLI_AUTH=advancedlogin-dev backend-redis-1 redis-cli
 - **Login says "Invalid username or password" for alice/bob:** the `dev` profile isn't active, so
   the test accounts weren't seeded.
 - **`429 Too Many Requests` while experimenting:** you hit a rate limit. Wait for `Retry-After`,
-  clear the counters (`redis-cli --scan --pattern 'rl:*' | xargs redis-cli DEL`), or set
+  clear the counters (command in [RUNNING.md §7](docs/RUNNING.md#7-troubleshooting)), or set
   `app.rate-limit.enabled=false` locally.

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 500" width="1040" height="500" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Status update fan-out through Redis Pub/Sub</title>
+  <defs>
+    <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker>
+    <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/></marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#dc382d"/></marker>
+  </defs>
+  <style>
+    .t { font-size: 15px; font-weight: 700; fill: #0f172a; }
+    .b { font-size: 12.5px; fill: #1e293b; }
+    .x { font-size: 11.5px; fill: #64748b; }
+    .m { font-family: Consolas, Menlo, monospace; font-size: 12px; fill: #0f172a; }
+    .mr { font-family: Consolas, Menlo, monospace; font-size: 12px; fill: #991b1b; }
+  </style>
+
+  <rect x="1" y="1" width="1038" height="498" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="30" y="42" font-size="22" font-weight="700" fill="#0f172a">How a status update reaches the desktop</text>
+  <text x="30" y="64" font-size="13" fill="#64748b">The phone's request and the desktop's SSE stream may land on different backend instances. Redis Pub/Sub connects them.</text>
+
+  <!-- phone -->
+  <rect x="30" y="108" width="160" height="72" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <g transform="translate(46 122)" fill="none" stroke="#16a34a" stroke-width="2.2"><rect width="18" height="30" rx="4"/><path d="M6 25 h6"/></g>
+  <text x="76" y="136" class="t">Phone</text>
+  <text x="76" y="156" class="m">POST …/approve</text>
+
+  <!-- instance A, publish side -->
+  <rect x="240" y="96" width="370" height="96" rx="12" fill="#f7fee7" stroke="#6db33f" stroke-width="1.5"/>
+  <text x="256" y="120" class="t">Backend instance A</text>
+  <text x="256" y="144" class="b">QrMobileController → QrSessionService</text>
+  <text x="256" y="162" class="b">CAS in Redis succeeds → <tspan class="m">QrStatusPublisher</tspan></text>
+  <text x="256" y="180" class="x">(adapter: RedisQrStatusPublisher, publish after the write)</text>
+  <path d="M190 144 L236 144" stroke="#334155" stroke-width="2" marker-end="url(#ad)"/>
+
+  <!-- redis -->
+  <rect x="670" y="92" width="340" height="104" rx="12" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+  <g transform="translate(686 106)">
+    <path d="M0 6 L12 0 L24 6 L12 12 z" fill="#dc382d"/>
+    <path d="M0 12 L12 18 L24 12" fill="none" stroke="#dc382d" stroke-width="2.5"/>
+    <path d="M0 18 L12 24 L24 18" fill="none" stroke="#dc382d" stroke-width="2.5"/>
+  </g>
+  <text x="720" y="122" class="t">Redis</text>
+  <text x="686" y="152" class="mr">PUBLISH qr:events:{qrId}</text>
+  <text x="686" y="174" class="m">"CONFIRMED:1792…:Xy7…"</text>
+  <text x="686" y="190" class="x">STATUS:expiresAtMillis[:exchangeCode]</text>
+  <path d="M610 144 L666 144" stroke="#334155" stroke-width="2" marker-end="url(#ad)"/>
+
+  <!-- fan out -->
+  <path d="M800 196 C 800 236, 425 236, 425 284" fill="none" stroke="#dc382d" stroke-width="2.2" stroke-dasharray="7 4" marker-end="url(#ar)"/>
+  <path d="M880 196 L880 284" fill="none" stroke="#dc382d" stroke-width="2.2" stroke-dasharray="7 4" marker-end="url(#ar)"/>
+  <text x="892" y="232" class="mr">PSUBSCRIBE</text>
+  <text x="892" y="250" class="mr">qr:events:*</text>
+  <text x="892" y="268" class="x">(every instance)</text>
+
+  <!-- instance A, subscribe side -->
+  <rect x="240" y="288" width="370" height="96" rx="12" fill="#f7fee7" stroke="#6db33f" stroke-width="1.5"/>
+  <text x="256" y="312" class="t">Backend instance A</text>
+  <text x="256" y="336" class="b">RedisQrEventSubscriber → QrStatusStreams</text>
+  <text x="256" y="356" class="x">no SSE stream for this QR on this instance:</text>
+  <text x="256" y="372" class="x">nothing to do</text>
+
+  <!-- instance B -->
+  <rect x="670" y="288" width="340" height="96" rx="12" fill="#f7fee7" stroke="#6db33f" stroke-width="1.5"/>
+  <text x="686" y="312" class="t">Backend instance B</text>
+  <text x="686" y="336" class="b">RedisQrEventSubscriber → QrStatusStreams</text>
+  <text x="686" y="356" class="x">holds the desktop's SseEmitter for this QR</text>
+
+  <!-- desktop -->
+  <rect x="670" y="420" width="340" height="56" rx="12" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <g transform="translate(686 432)" fill="none" stroke="#2563eb" stroke-width="2.2"><rect width="28" height="19" rx="3"/><path d="M9 25 h10 M14 19 v6"/></g>
+  <text x="726" y="446" class="t">Desktop</text>
+  <text x="726" y="464" class="m">event: status {CONFIRMED, code}</text>
+  <path d="M840 384 L840 416" stroke="#ea580c" stroke-width="2.6" marker-end="url(#ao)"/>
+  <text x="852" y="405" class="x">SSE push</text>
+
+  <!-- footer -->
+  <text x="30" y="430" class="x">Code: port QrStatusPublisher · adapter/out/redis/RedisQrStatusPublisher</text>
+  <text x="30" y="447" class="x">adapter/in/redis/RedisQrEventSubscriber · adapter/in/web/qr/QrStatusStreams</text>
+  <text x="30" y="464" class="x">shared message format: adapter/common/redis/QrEventChannel</text>
+</svg>
