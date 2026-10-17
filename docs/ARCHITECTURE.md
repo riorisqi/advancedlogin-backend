@@ -1,7 +1,8 @@
 # AdvancedLogin — Architecture & API Design
 
 Status: **v1, all 8 milestones implemented** (§10). Decisions marked ✅ were the recommendations we went with.
-Want to break it? See §11 *Attack yourself*.
+Want to break it? See §11 *Attack yourself*. Study guides: [CLEAN_ARCHITECTURE.md](CLEAN_ARCHITECTURE.md),
+[SECURITY.md](SECURITY.md) (what's still missing).
 
 ---
 

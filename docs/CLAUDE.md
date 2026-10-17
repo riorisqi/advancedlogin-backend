@@ -52,7 +52,10 @@ Full architecture & API design: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Frontend: domain/ has no React; presentation/ uses hooks from application/, never
   infrastructure/. Ports filled in app/DependenciesProvider. Enforced by oxlint
   `no-restricted-imports` overrides.
-- Details: ARCHITECTURE.md §9.
+- Details: ARCHITECTURE.md §9 and the study guide CLEAN_ARCHITECTURE.md.
+
+## Security
+Status, audit-logging plan and prioritized backlog: [SECURITY.md](SECURITY.md).
 
 ## Repo layout
 - Two separate git repos under `AdvancedLogin/`: `backend/` (this one, also holds

@@ -12,6 +12,8 @@ The React app lives in the sibling repo [`advancedlogin-frontend`](https://githu
 | Design, API, state machine, Redis keys | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Project context & decisions | [docs/CLAUDE.md](docs/CLAUDE.md) |
 | Attacks and the tests that stop them | [ARCHITECTURE.md §11](docs/ARCHITECTURE.md#11-attack-yourself) |
+| Clean architecture study guide (backend + frontend) | [docs/CLEAN_ARCHITECTURE.md](docs/CLEAN_ARCHITECTURE.md) |
+| Security status, audit logging plan, hardening backlog | [docs/SECURITY.md](docs/SECURITY.md) |
 
 <p align="center"><img src="docs/images/sequence.svg" alt="QR login sequence" width="720"></p>
 
@@ -102,7 +104,7 @@ src/main/java/com/advancedlogin/
 src/main/resources/lua/   qr_create.lua, qr_transition.lua (atomic compare-and-set)
 ```
 
-Details and the reasoning behind each layer: [ARCHITECTURE.md §9](docs/ARCHITECTURE.md).
+Details and the reasoning behind each layer: [CLEAN_ARCHITECTURE.md](docs/CLEAN_ARCHITECTURE.md).
 
 ## API at a glance
 
