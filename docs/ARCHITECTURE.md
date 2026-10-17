@@ -253,44 +253,98 @@ type QrStatus =
 
 ---
 
-## 9. Project structure
+## 9. Project structure — clean architecture
 
-Two separate git repos side by side (no repo at the top level):
+Two separate git repos side by side (no repo at the top level). Both follow the same
+**dependency rule: source-code dependencies only point inwards.**
 
 ```
-AdvancedLogin/                    # plain folder, not a repo
-├── CLAUDE.md                     # just imports backend/docs/CLAUDE.md
-├── backend/                      # git repo #1 — Spring Boot 4.1, Java 21, Maven
-│   ├── docs/                     # CLAUDE.md (project context), this design doc, images
-│   ├── docker-compose.yml        # redis (+ redis-insight for poking at keys)
-│   └── src/main/java/com/advancedlogin/
-│       ├── AdvancedLoginApplication.java
-│       ├── config/               # SecurityConfig, RedisConfig, SessionConfig
-│       ├── auth/                 # AuthController (/login,/logout,/me), User, UserService
-│       ├── qr/
-│       │   ├── QrDesktopController.java    # create, events, status, exchange
-│       │   ├── QrMobileController.java     # scan, approve, reject
-│       │   ├── QrSessionService.java       # business rules
-│       │   ├── QrSessionStore.java         # Redis + Lua scripts
-│       │   ├── QrStatus.java               # enum
-│       │   ├── QrEventBus.java             # Redis pub/sub
-│       │   └── SseEmitterRegistry.java     # qrId → local emitters
-│       └── common/               # RateLimitFilter, ProblemDetail handler, RandomTokens
-│   └── src/main/resources/
-│       ├── application.yml
-│       └── lua/                  # scan.lua, approve.lua, reject.lua, exchange.lua
-└── frontend/                     # git repo #2 — Vite + React + TS + Tailwind
-    └── src/
-        ├── api/                  # fetch wrapper (CSRF), qr.ts, auth.ts
-        ├── features/
-        │   ├── desktop-login/    # QrLoginPage, useQrSession
-        │   └── mobile/           # MobileLogin, Scanner, ApprovePage
-        ├── routes/
-        └── main.tsx
+   outer ──────────────────────────────────────────▶ inner
+   config / app   →   adapters / infrastructure + presentation   →   application   →   domain
+   (wiring)           (HTTP, Redis, SSE, React UI)                   (use cases,        (entities,
+                                                                     ports)              rules)
 ```
 
-Package-by-feature (`qr/`, `auth/`) rather than by layer (`controllers/`, `services/`):
-everything about QR login lives together.
+- **domain** — business objects and rules (`QrSession`, state transitions). Plain code: no
+  framework, no I/O. The most stable layer.
+- **application** — use cases (`ScanQrSession`, `ApproveQrSession`…) and **ports**: interfaces
+  for what a use case needs from the outside world (`QrSessionStore`, `QrEventPublisher`).
+- **adapters / infrastructure** — implement the ports with real tech (Redis + Lua, SSE,
+  Spring MVC controllers, `fetch`). Replaceable without touching use cases.
+- **config / app** — the composition root that wires concrete adapters into use cases.
+
+*Why:* the QR state machine and security rules are the valuable part. Keeping them free of
+Spring/Redis/React means they're unit-testable with fakes in milliseconds, and swapping
+SSE ↔ WebSocket or Redis ↔ something else only touches an adapter.
+
+The rule is **enforced by the build**, not just by convention:
+- backend: ArchUnit test `architecture/CleanArchitectureTest` (fails `mvnw test`)
+- frontend: `no-restricted-imports` overrides in `.oxlintrc.json` (fails `bun run lint`)
+
+### Backend (`backend/` — Spring Boot 4.1, Java 21, Maven)
+
+```
+backend/
+├── docs/                         # CLAUDE.md (project context), this design doc, images
+├── docker-compose.yml            # redis + redisinsight
+├── src/main/java/com/advancedlogin/
+│   ├── AdvancedLoginApplication.java
+│   ├── domain/                   # plain Java — no Spring imports (ArchUnit-checked)
+│   │   ├── health/               # HealthStatus, SystemHealth            ✔ slice 1
+│   │   ├── user/                 # User, UserId
+│   │   └── qr/                   # QrSession, QrStatus, QrSessionId, ExchangeCode, DeviceInfo
+│   ├── application/              # use cases + ports — no Spring imports (ArchUnit-checked)
+│   │   ├── health/               # CheckHealthService, port/in, port/out  ✔ slice 1
+│   │   ├── auth/                 # LoginService, port/out/UserRepository, PasswordHasher
+│   │   └── qr/
+│   │       ├── port/in/          # CreateQrSessionUseCase, ScanQrSessionUseCase, ...
+│   │       ├── port/out/         # QrSessionStore, QrEventPublisher, SecureRandomTokens
+│   │       └── *Service.java     # use case implementations
+│   ├── adapter/
+│   │   ├── in/web/               # @RestControllers, request/response DTOs, SSE endpoint
+│   │   │   ├── health/           # HealthController                      ✔ slice 1
+│   │   │   ├── auth/
+│   │   │   └── qr/               # QrDesktopController, QrMobileController, SseEmitterRegistry
+│   │   └── out/
+│   │       ├── redis/            # RedisDataStoreHealthAdapter ✔, RedisQrSessionStore (+ Lua),
+│   │       │                     # RedisQrEventPublisher (pub/sub)
+│   │       └── persistence/      # user store (in-memory/H2 at first)
+│   └── config/                   # UseCaseConfig (@Bean wiring) ✔, SecurityConfig, SessionConfig
+└── src/main/resources/
+    ├── application.yml
+    └── lua/                      # scan.lua, approve.lua, reject.lua, exchange.lua
+```
+
+Use-case classes carry **no Spring annotations**; they're registered as `@Bean`s in
+`config/UseCaseConfig`. Adapters may use `@Component`/`@RestController` freely.
+
+### Frontend (`frontend/` — Vite + React + TS + Tailwind, bun)
+
+```
+frontend/src/
+├── domain/                       # plain TS: types + pure logic, no React
+│   ├── health/                   # SystemHealth                          ✔ slice 1
+│   └── qr/                       # QrStatus union, state-machine reducer
+├── application/                  # use-case hooks + ports (may use React, not infrastructure)
+│   ├── ports/                    # HealthGateway ✔, AuthGateway, QrGateway, QrStatusStream
+│   ├── dependencies.ts           # Dependencies type + context + useDependencies() ✔
+│   ├── health/                   # useSystemHealth                       ✔ slice 1
+│   ├── auth/                     # useLogin, useCurrentUser
+│   └── qr/                       # useQrSession, useApproveQr
+├── infrastructure/               # implements ports: fetch, EventSource, camera
+│   ├── http/                     # httpClient (later: CSRF header)       ✔
+│   ├── health/                   # httpHealthGateway (DTO → domain)     ✔
+│   └── qr/                       # httpQrGateway, sseQrStatusStream
+├── presentation/                 # React components & pages — talk to hooks only
+│   ├── components/               # StatusRow ✔, QrCode, DeviceInfoCard
+│   └── pages/                    # HealthPage ✔, QrLoginPage, MobileLoginPage, ApprovePage
+├── app/                          # composition root: DependenciesProvider ✔, App, routes
+└── main.tsx
+```
+
+`application/` uses React hooks (pragmatic for React), but never `fetch`/`EventSource`:
+those live behind ports, which `app/DependenciesProvider` fills with real implementations
+(or fakes in tests).
 
 ---
 

@@ -44,6 +44,16 @@ Actors: Desktop browser (not logged in), Phone app (already logged in), Backend.
 Full architecture & API design: [ARCHITECTURE.md](ARCHITECTURE.md)
 (SSE for real-time, Spring Session + HttpOnly cookies, Redis Lua CAS for transitions).
 
+## Code structure: clean architecture (both repos)
+- Layers: domain ← application (use cases + ports) ← adapters/infrastructure & presentation
+  ← config/app (composition root). Dependencies only point inwards.
+- Backend: domain/ and application/ have no Spring imports; use cases are wired as @Bean in
+  config/UseCaseConfig. Enforced by ArchUnit (`architecture/CleanArchitectureTest`).
+- Frontend: domain/ has no React; presentation/ uses hooks from application/, never
+  infrastructure/. Ports filled in app/DependenciesProvider. Enforced by oxlint
+  `no-restricted-imports` overrides.
+- Details: ARCHITECTURE.md §9.
+
 ## Repo layout
 - Two separate git repos under `AdvancedLogin/`: `backend/` (this one, also holds
   docs + docker-compose) and `frontend/`. The top-level folder is not a repo.
