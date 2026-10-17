@@ -5,6 +5,7 @@ spring:
     redis:
       host: localhost
       port: 6379
+      password: ${REDIS_PASSWORD:}   # dev default lives in application-dev.yml
       # fail fast instead of the 60s default
       timeout: 2s
       connect-timeout: 2s
@@ -50,12 +51,3 @@ app:
     # Base of the URL inside the QR. Empty = the desktop's Origin (see ApproveLinks); set it in production.
     approve-base-url: ${APP_QR_APPROVE_BASE_URL:}
     secure-cookies: false   # true behind HTTPS
-
-  # Dev-only test accounts, hashed at startup.
-  seed-users:
-    - username: alice
-      display-name: Alice
-      password: alice-dev-pass
-    - username: bob
-      display-name: Bob
-      password: bob-dev-pass

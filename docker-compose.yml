@@ -1,18 +1,21 @@
 # Local dev infrastructure. Start with: docker compose up -d
+# Ports are bound to 127.0.0.1 only: nothing else on your network (e.g. while using
+# `bun run dev:lan`) can reach Redis or RedisInsight.
 services:
   redis:
     image: redis:8-alpine
     ports:
-      - "6379:6379"
-    # No persistence: every QR session / HTTP session is short-lived anyway,
-    # and a clean Redis on restart makes experiments easier to reason about.
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+      - "127.0.0.1:6379:6379"
+    # No persistence: QR and HTTP sessions are short-lived anyway.
+    # Dev password; override with REDIS_PASSWORD (the backend reads the same variable).
+    command: ["redis-server", "--save", "", "--appendonly", "no",
+              "--requirepass", "${REDIS_PASSWORD:-advancedlogin-dev}"]
 
-  # Web UI to inspect keys and TTLs while learning: http://localhost:5540
-  # (add a database with host "redis", port 6379)
+  # Web UI for keys and TTLs: http://localhost:5540
+  # (add a database: host "redis", port 6379, password as above)
   redisinsight:
     image: redis/redisinsight:latest
     ports:
-      - "5540:5540"
+      - "127.0.0.1:5540:5540"
     depends_on:
       - redis

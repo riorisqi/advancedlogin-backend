@@ -54,6 +54,10 @@ Full architecture & API design: [ARCHITECTURE.md](ARCHITECTURE.md)
   `no-restricted-imports` overrides.
 - Details: ARCHITECTURE.md §9 and the study guide CLEAN_ARCHITECTURE.md.
 
+## Running locally
+- Backend needs the `dev` profile (test accounts + dev Redis password): `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`.
+- Redis (docker compose) is bound to 127.0.0.1 and requires `REDIS_PASSWORD` (dev default `advancedlogin-dev`).
+
 ## Security
 Status, audit-logging plan and prioritized backlog: [SECURITY.md](SECURITY.md).
 

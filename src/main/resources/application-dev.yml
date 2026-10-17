@@ -1,0 +1,16 @@
+# Local development only: activate with the "dev" profile
+# (./mvnw spring-boot:run -Dspring-boot.run.profiles=dev, or "Active profiles: dev" in the IDE).
+spring:
+  data:
+    redis:
+      password: ${REDIS_PASSWORD:advancedlogin-dev}   # matches docker-compose.yml
+
+app:
+  # Test accounts (no sign-up flow), hashed at startup by DevUserSeeder.
+  seed-users:
+    - username: alice
+      display-name: Alice
+      password: alice-dev-pass
+    - username: bob
+      display-name: Bob
+      password: bob-dev-pass

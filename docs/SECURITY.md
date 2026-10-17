@@ -86,19 +86,21 @@ adapter/out/audit/Slf4jSecurityEvents.java          (adapter: logger named "audi
 
 ### P0: fix now (local network exposure)
 
-**S1. Redis is open to your whole network, without a password.**
+**S1. ✅ Done: Redis is open to your whole network, without a password.**
 `docker-compose.yml` publishes `"6379:6379"`, so Redis listens on `0.0.0.0` and
 `requirepass` is empty. RedisInsight (`:5540`) has no login either. Anyone on the same Wi-Fi
 (you're inviting them in with `bun run dev:lan`) can read exchange codes, read or forge HTTP
 sessions, or wipe everything. Spring Session stores JDK-serialized objects, so writable Redis
 also means untrusted deserialization.
-Fix: bind to localhost (`"127.0.0.1:6379:6379"`, same for 5540) and set a password
-(`--requirepass` + `spring.data.redis.password`); in production also use ACLs and TLS.
+Fixed: compose binds both ports to `127.0.0.1` and Redis runs with `--requirepass`
+(`REDIS_PASSWORD`, dev default `advancedlogin-dev`); the backend reads the same variable. Still to
+do for production: a real secret, Redis ACLs (a dedicated user with only the needed commands) and TLS.
 
-**S2. Test accounts ship in the default configuration.**
+**S2. ✅ Done: Test accounts ship in the default configuration.**
 `app.seed-users` (alice/bob with known passwords) lives in `application.yml`, so every
 environment gets them. Move it to `application-dev.yml` (profile `dev`), and make
-`DevUserSeeder` `@Profile("dev")`.
+`DevUserSeeder` `@Profile("dev")`. Fixed exactly so; `AdvancedLoginApplicationTests` checks that
+the accounts don't exist in the default profile.
 
 ### P1: needed before production
 
@@ -178,7 +180,7 @@ per username, and alerting on many usernames failing from one IP (password spray
 
 ## 4. Suggested order
 
-1. **S1 + S2** (minutes): stop exposing Redis, move test users to the dev profile.
+1. ~~**S1 + S2**~~ done: Redis is localhost-only with a password, test users are dev-profile only.
 2. **A1 audit logging** (an afternoon): biggest visibility win, and a nice clean-architecture
    exercise (new port + adapter + tests).
 3. **S3 + S4** headers (dev: `vite.config.ts`; prod: web server config).

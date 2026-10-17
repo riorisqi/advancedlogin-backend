@@ -2,6 +2,7 @@ package com.advancedlogin.support;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.GenericContainer;
 
 /**
@@ -11,6 +12,7 @@ import org.testcontainers.containers.GenericContainer;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "app.rate-limit.enabled=false")
+@ActiveProfiles("dev") // seed users; the container's own connection details replace the dev password
 public abstract class RedisIntegrationTest {
 
     @ServiceConnection(name = "redis")

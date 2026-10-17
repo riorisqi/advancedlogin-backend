@@ -7,11 +7,13 @@ import com.advancedlogin.domain.user.UserId;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 import java.util.List;
 
-/** Seeds the test accounts from {@code app.seed-users} (there's no sign-up flow). */
+/** Seeds the test accounts from {@code app.seed-users} (application-dev.yml). Never runs outside "dev". */
 @Configuration
+@Profile("dev")
 @EnableConfigurationProperties(DevUserSeeder.SeedUsersProperties.class)
 class DevUserSeeder {
 
